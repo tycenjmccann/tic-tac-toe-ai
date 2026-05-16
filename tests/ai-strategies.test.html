@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe AI Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .performance {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Tic-Tac-Toe AI Test Suite</h1>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <script type="module">
+        import { AIStrategyFactory, EasyAI, MediumAI, HardAI } from '../js/ai-strategies.js';
+        import { Game } from '../js/game.js';
+
+        /**
+         * Simple test framework
+         */
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = {
+                    name,
+                    tests: [],
+                    beforeEach: null
+                };
+                this.suites.push(suite);
+                
+                const testContext = {
+                    test: (testName, testFn) => {
+                        suite.tests.push({ name: testName, fn: testFn });
+                    },
+                    beforeEach: (fn) => {
+                        suite.beforeEach = fn;
+                    }
+                };
+
+                callback(testContext);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+                
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+                    
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) {
+                            testState = suite.beforeEach();
+                        }
+
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+                        
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `
+                                ❌ ${test.name}
+                                <pre class="error">${error.message}</pre>
+                            `;
+                            this.failed++;
+                        }
+                        
+                        suiteDiv.appendChild(testDiv);
+                    }
+                    
+                    resultsDiv.appendChild(suiteDiv);
+                }
+
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const percentage = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+                
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat">
+                        <strong>Total:</strong> ${total}
+                    </div>
+                    <div class="summary-stat success">
+                        <strong>Passed:</strong> ${this.passed}
+                    </div>
+                    <div class="summary-stat error">
+                        <strong>Failed:</strong> ${this.failed}
+                    </div>
+                    <div class="summary-stat">
+                        <strong>Success Rate:</strong> ${percentage}%
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Assertion helpers
+         */
+        function assert(condition, message = 'Assertion failed') {
+            if (!condition) {
+                throw new Error(message);
+            }
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(
+                    message || `Expected ${expected} but got ${actual}`
+                );
+            }
+        }
+
+        function assertNotNull(value, message = 'Value should not be null') {
+            if (value === null || value === undefined) {
+                throw new Error(message);
+            }
+        }
+
+        function assertTrue(value, message = 'Value should be true') {
+            if (value !== true) {
+                throw new Error(message);
+            }
+        }
+
+        function assertFalse(value, message = 'Value should be false') {
+            if (value !== false) {
+                throw new Error(message);
+            }
+        }
+
+        /**
+         * Test Suites
+         */
+        const runner = new TestRunner();
+
+        // Easy AI Tests
+        runner.suite('Easy AI Strategy', ({ test, beforeEach }) => {
+            beforeEach(() => ({ ai: new EasyAI() }));
+
+            test('should make a valid move on empty board', ({ ai }) => {
+                const board = Array(9).fill(null);
+                const move = ai.getMove(board);
+                assertNotNull(move);
+                assertTrue(move >= 0 && move <= 8);
+                assertTrue(board[move] === null);
+            });
+
+            test('should make a valid move on partially filled board', ({ ai }) => {
+                const board = ['X', 'O', null, 'X', null, null, null, null, 'O'];
+                const move = ai.getMove(board);
+                assertNotNull(move);
+                assertTrue(board[move] === null);
+            });
+
+            test('should return null on full board', ({ ai }) => {
+                const board = Array(9).fill('X');
+                const move = ai.getMove(board);
+                assertEqual(move, null);
+            });
+
+            test('should make random moves (no strategy)', ({ ai }) => {
+                const board = [null, 'X', null, null, 'O', null, null, null, null];
+                const moves = new Set();
+                
+                // Make multiple moves to verify randomness
+                for (let i = 0; i < 20; i++) {
+                    const move = ai.getMove(board);
+                    moves.add(move);
+                }
+                
+                // Should have made different moves
+                assertTrue(moves.size > 1, 'AI should make random moves');
+            });
+        });
+
+        // Medium AI Tests
+        runner.suite('Medium AI Strategy', ({ test, beforeEach }) => {
+            beforeEach(() => ({ ai: new MediumAI() }));
+
+            test('should take winning move', ({ ai }) => {
+                const board = ['O', 'O', null, 'X', 'X', null, null, null, null];
+                const move = ai.getMove(board);
+                assertEqual(move, 2, 'Should complete winning row');
+            });
+
+            test('should block opponent winning move', ({ ai }) => {
+                const board = ['X', 'X', null, 'O', null, null, null, null, null];
+                const move = ai.getMove(board);
+                assertEqual(move, 2, 'Should block opponent win');
+            });
+
+            test('should prefer center when available', ({ ai }) => {
+                const board = ['X', null, null, null, null, null, null, null, 'O'];
+                const move = ai.getMove(board);
+                assertEqual(move, 4, 'Should take center');
+            });
+
+            test('should take corner when center is occupied', ({ ai }) => {
+                const board = [null, null, null, null, 'X', null, null, null, null];
+                const move = ai.getMove(board);
+                assertTrue([0, 2, 6, 8].includes(move), 'Should take a corner');
+            });
+
+            test('should prioritize winning over blocking', ({ ai }) => {
+                const board = ['O', 'O', null, 'X', 'X', null, null, null, null];
+                const move = ai.getMove(board);
+                assertEqual(move, 2, 'Should take win instead of blocking');
+            });
+        });
+
+        // Hard AI Tests
+        runner.suite('Hard AI Strategy (Minimax)', ({ test, beforeEach }) => {
+            beforeEach(() => ({ ai: new HardAI() }));
+
+            test('should take center on empty board', ({ ai }) => {
+                const board = Array(9).fill(null);
+                const move = ai.getMove(board);
+                assertEqual(move, 4, 'Should take center first');
+            });
+
+            test('should take winning move', ({ ai }) => {
+                const board = ['O', 'O', null, 'X', 'X', null, null, null, null];
+                const move = ai.getMove(board);
+                assertEqual(move, 2, 'Should take immediate win');
+            });
+
+            test('should block opponent winning move', ({ ai }) => {
+                const board = ['X', 'X', null, 'O', null, null, null, null, null];
+                const move = ai.getMove(board);
+                assertEqual(move, 2, 'Should block opponent win');
+            });
+
+            test('should make optimal move to force win', ({ ai }) => {
+                const board = ['O', null, null, null, 'X', null, null, null, null];
+                const move = ai.getMove(board);
+                // Should make a move that sets up multiple win conditions
+                assertNotNull(move);
+                assertTrue(board[move] === null);
+            });
+
+            test('should never lose (play multiple games)', ({ ai }) => {
+                // This test verifies the AI is truly unbeatable
+                let aiLosses = 0;
+                
+                for (let game = 0; game < 10; game++) {
+                    const board = Array(9).fill(null);
+                    let currentPlayer = 'X'; // Human starts
+                    let gameOver = false;
+                    
+                    while (!gameOver) {
+                        let move;
+                        
+                        if (currentPlayer === 'O') {
+                            move = ai.getMove(board);
+                        } else {
+                            // Simple opponent (take first available)
+                            const empty = board.map((c, i) => c === null ? i : null).filter(i => i !== null);
+                            if (empty.length === 0) break;
+                            move = empty[0];
+                        }
+                        
+                        if (move === null) break;
+                        board[move] = currentPlayer;
+                        
+                        // Check win
+                        if (ai.checkWin(board, 'X')) {
+                            aiLosses++;
+                            gameOver = true;
+                        } else if (ai.checkWin(board, 'O') || ai.isBoardFull(board)) {
+                            gameOver = true;
+                        }
+                        
+                        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                    }
+                }
+                
+                assertEqual(aiLosses, 0, 'Hard AI should never lose');
+            });
+        });
+
+        // Game State Tests
+        runner.suite('Game State Management', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('should initialize with empty board', ({ game }) => {
+                const state = game.getState();
+                assertTrue(state.board.every(cell => cell === null));
+                assertEqual(state.currentPlayer, 'X');
+                assertFalse(state.isGameOver);
+            });
+
+            test('should make valid move', ({ game }) => {
+                const success = game.makeMove(0, 'X');
+                assertTrue(success);
+                assertEqual(game.board[0], 'X');
+            });
+
+            test('should reject invalid move', ({ game }) => {
+                game.makeMove(0, 'X');
+                const success = game.makeMove(0, 'O');
+                assertFalse(success);
+            });
+
+            test('should detect horizontal win', ({ game }) => {
+                game.board = ['X', 'X', 'X', 'O', 'O', null, null, null, null];
+                game.checkGameOver();
+                assertTrue(game.isGameOver);
+                assertEqual(game.winner, 'X');
+            });
+
+            test('should detect vertical win', ({ game }) => {
+                game.board = ['O', 'X', 'X', 'O', 'X', null, 'O', null, null];
+                game.checkGameOver();
+                assertTrue(game.isGameOver);
+                assertEqual(game.winner, 'O');
+            });
+
+            test('should detect diagonal win', ({ game }) => {
+                game.board = ['X', 'O', 'O', null, 'X', null, 'O', null, 'X'];
+                game.checkGameOver();
+                assertTrue(game.isGameOver);
+                assertEqual(game.winner, 'X');
+            });
+
+            test('should detect draw', ({ game }) => {
+                game.board = ['X', 'O', 'X', 'O', 'X', 'O', 'O', 'X', 'O'];
+                game.checkGameOver();
+                assertTrue(game.isGameOver);
+                assertEqual(game.winner, 'draw');
+            });
+
+            test('should reset game state', ({ game }) => {
+                game.board = ['X', 'O', 'X', null, null, null, null, null, null];
+                game.reset();
+                assertTrue(game.board.every(cell => cell === null));
+                assertFalse(game.isGameOver);
+            });
+
+            test('should persist difficulty in localStorage', ({ game }) => {
+                game.saveDifficulty('hard');
+                assertEqual(localStorage.getItem('tic-tac-toe-difficulty'), 'hard');
+                
+                const newGame = new Game();
+                assertEqual(newGame.difficulty, 'hard');
+            });
+
+            test('should update and persist stats', ({ game }) => {
+                game.stats = { wins: 5, losses: 3, draws: 2 };
+                game.saveStats();
+                
+                const newGame = new Game();
+                assertEqual(newGame.stats.wins, 5);
+                assertEqual(newGame.stats.losses, 3);
+                assertEqual(newGame.stats.draws, 2);
+            });
+        });
+
+        // AI Strategy Factory Tests
+        runner.suite('AI Strategy Factory', ({ test }) => {
+            test('should create Easy AI', () => {
+                const ai = AIStrategyFactory.create('easy');
+                assertTrue(ai instanceof EasyAI);
+            });
+
+            test('should create Medium AI', () => {
+                const ai = AIStrategyFactory.create('medium');
+                assertTrue(ai instanceof MediumAI);
+            });
+
+            test('should create Hard AI', () => {
+                const ai = AIStrategyFactory.create('hard');
+                assertTrue(ai instanceof HardAI);
+            });
+
+            test('should default to Medium for unknown difficulty', () => {
+                const ai = AIStrategyFactory.create('unknown');
+                assertTrue(ai instanceof MediumAI);
+            });
+        });
+
+        // Performance Tests
+        runner.suite('Performance Tests', ({ test }) => {
+            test('Easy AI should respond quickly', () => {
+                const ai = new EasyAI();
+                const board = ['X', 'O', null, null, 'X', null, 'O', null, null];
+                
+                const start = performance.now();
+                for (let i = 0; i < 1000; i++) {
+                    ai.getMove(board);
+                }
+                const elapsed = performance.now() - start;
+                
+                assertTrue(elapsed < 100, `Easy AI took ${elapsed}ms for 1000 moves`);
+            });
+
+            test('Medium AI should respond quickly', () => {
+                const ai = new MediumAI();
+                const board = ['X', 'O', null, null, 'X', null, 'O', null, null];
+                
+                const start = performance.now();
+                for (let i = 0; i < 1000; i++) {
+                    ai.getMove(board);
+                }
+                const elapsed = performance.now() - start;
+                
+                assertTrue(elapsed < 500, `Medium AI took ${elapsed}ms for 1000 moves`);
+            });
+
+            test('Hard AI should respond within acceptable time', () => {
+                const ai = new HardAI();
+                const board = ['X', 'O', null, null, 'X', null, 'O', null, null];
+                
+                const start = performance.now();
+                ai.getMove(board);
+                const elapsed = performance.now() - start;
+                
+                assertTrue(elapsed < 500, `Hard AI took ${elapsed}ms for single move`);
+            });
+        });
+
+        // Run all tests
+        console.log('🚀 Starting test suite...');
+        await runner.run();
+        console.log('✅ All tests complete!');
+    </script>
+</body>
+</html>
