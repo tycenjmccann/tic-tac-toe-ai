@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe Game Logic Tests - Anti-Diagonal Regression</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Game Logic Tests — Anti-Diagonal Win Regression (TEAM-1565)</h1>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <script type="module">
+        import { Game } from '../js/game.js';
+
+        /**
+         * Simple test framework (same pattern as ai-strategies.test.html)
+         */
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = {
+                    name,
+                    tests: [],
+                    beforeEach: null
+                };
+                this.suites.push(suite);
+
+                const testContext = {
+                    test: (testName, testFn) => {
+                        suite.tests.push({ name: testName, fn: testFn });
+                    },
+                    beforeEach: (fn) => {
+                        suite.beforeEach = fn;
+                    }
+                };
+
+                callback(testContext);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) {
+                            testState = suite.beforeEach();
+                        }
+
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `
+                                ❌ ${test.name}
+                                <pre class="error">${error.message}</pre>
+                            `;
+                            this.failed++;
+                        }
+
+                        suiteDiv.appendChild(testDiv);
+                    }
+
+                    resultsDiv.appendChild(suiteDiv);
+                }
+
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const percentage = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat">
+                        <strong>Total:</strong> ${total}
+                    </div>
+                    <div class="summary-stat success">
+                        <strong>Passed:</strong> ${this.passed}
+                    </div>
+                    <div class="summary-stat error">
+                        <strong>Failed:</strong> ${this.failed}
+                    </div>
+                    <div class="summary-stat">
+                        <strong>Success Rate:</strong> ${percentage}%
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Assertion helpers
+         */
+        function assert(condition, message = 'Assertion failed') {
+            if (!condition) {
+                throw new Error(message);
+            }
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(
+                    message || `Expected ${expected} but got ${actual}`
+                );
+            }
+        }
+
+        function assertTrue(value, message = 'Value should be true') {
+            if (value !== true) {
+                throw new Error(message);
+            }
+        }
+
+        function assertFalse(value, message = 'Value should be false') {
+            if (value !== false) {
+                throw new Error(message);
+            }
+        }
+
+        function assertArrayIncludes(arr, target, message) {
+            const found = arr.some(item =>
+                Array.isArray(item) &&
+                item.length === target.length &&
+                item.every((val, idx) => val === target[idx])
+            );
+            if (!found) {
+                throw new Error(
+                    message || `Array does not include [${target}]`
+                );
+            }
+        }
+
+        /**
+         * Test Suites
+         */
+        const runner = new TestRunner();
+
+        // Anti-Diagonal Win Detection Regression Tests
+        runner.suite('Anti-Diagonal Win Detection (Regression)', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('WIN_PATTERNS should contain exactly 8 patterns', ({ game }) => {
+                const patterns = Game.WIN_PATTERNS;
+                assertEqual(patterns.length, 8,
+                    `Expected 8 win patterns but found ${patterns.length}. ` +
+                    'The anti-diagonal [2,4,6] may be missing.');
+            });
+
+            test('WIN_PATTERNS should include [2, 4, 6]', ({ game }) => {
+                const patterns = Game.WIN_PATTERNS;
+                assertArrayIncludes(patterns, [2, 4, 6],
+                    'WIN_PATTERNS is missing the anti-diagonal pattern [2, 4, 6]. ' +
+                    'This was removed in commit 9730bb09 and must be restored.');
+            });
+
+            test('should detect anti-diagonal win (cells 2, 4, 6)', ({ game }) => {
+                // Directly set board state: X occupies cells 2, 4, 6 (anti-diagonal)
+                game.board = [null, null, 'X', 'O', 'X', 'O', 'X', null, null];
+                game.checkGameOver();
+                assertTrue(game.isGameOver,
+                    'Game should be over when X has cells 2, 4, 6');
+                assertEqual(game.winner, 'X',
+                    'X should be the winner with anti-diagonal (cells 2, 4, 6)');
+                assert(
+                    game.winningCombination !== null &&
+                    game.winningCombination.length === 3 &&
+                    game.winningCombination.includes(2) &&
+                    game.winningCombination.includes(4) &&
+                    game.winningCombination.includes(6),
+                    'Winning combination should be [2, 4, 6]'
+                );
+            });
+
+            test('should detect anti-diagonal win via makeMove sequence', ({ game }) => {
+                // Simulate a real game: X plays cells 2, 4, 6 with O playing 0, 1
+                game.makeMove(2, 'X');  // X takes top-right
+                game.makeMove(0, 'O');  // O takes top-left
+                game.makeMove(4, 'X');  // X takes center
+                game.makeMove(1, 'O');  // O takes top-middle
+                game.makeMove(6, 'X');  // X takes bottom-left — should win!
+
+                assertTrue(game.isGameOver,
+                    'Game should end after X completes anti-diagonal via moves');
+                assertEqual(game.winner, 'X',
+                    'X should win after completing anti-diagonal via makeMove');
+            });
+
+            test('should detect O winning on anti-diagonal', ({ game }) => {
+                // O occupies cells 2, 4, 6
+                game.board = ['X', 'X', 'O', null, 'O', 'X', 'O', null, null];
+                game.checkGameOver();
+                assertTrue(game.isGameOver,
+                    'Game should be over when O has cells 2, 4, 6');
+                assertEqual(game.winner, 'O',
+                    'O should be the winner with anti-diagonal');
+            });
+
+            test('WIN_PATTERNS should include main diagonal [0, 4, 8]', ({ game }) => {
+                // Ensure we did not accidentally remove the main diagonal
+                const patterns = Game.WIN_PATTERNS;
+                assertArrayIncludes(patterns, [0, 4, 8],
+                    'WIN_PATTERNS is missing the main diagonal pattern [0, 4, 8]');
+            });
+        });
+
+        // Run all tests
+        console.log('🚀 Starting anti-diagonal regression tests...');
+        await runner.run();
+        console.log('✅ All tests complete!');
+    </script>
+</body>
+</html>
