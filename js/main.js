@@ -4,6 +4,7 @@
  */
 
 import { UIController } from './ui.js';
+import { ThemeManager } from './theme.js';
 
 /**
  * Initialize the application when DOM is ready
@@ -12,6 +13,9 @@ function init() {
     console.log('🎮 Initializing Tic-Tac-Toe vs AI...');
     
     try {
+        // Initialize theme manager first
+        const themeManager = new ThemeManager();
+        
         // Create UI controller (which creates the game)
         const ui = new UIController();
         
@@ -19,10 +23,11 @@ function init() {
         console.log('Current difficulty:', ui.game.difficulty);
         console.log('Stats:', ui.game.stats);
         
-        // Make UI controller available globally for debugging
+        // Make controllers available globally for debugging
         if (typeof window !== 'undefined') {
             window.game = ui.game;
             window.ui = ui;
+            window.themeManager = themeManager;
         }
     } catch (error) {
         console.error('❌ Error initializing game:', error);
