@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe vs AI</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Tic-Tac-Toe vs AI</h1>
+            <p class="subtitle">Challenge the AI at different difficulty levels</p>
+        </header>
+
+        <main>
+            <!-- Difficulty Selector Component -->
+            <section class="difficulty-selector" role="radiogroup" aria-labelledby="difficulty-label">
+                <h2 id="difficulty-label">Select Difficulty</h2>
+                <div class="difficulty-options">
+                    <button 
+                        type="button" 
+                        class="difficulty-btn" 
+                        data-difficulty="easy"
+                        role="radio"
+                        aria-checked="false"
+                        aria-label="Easy difficulty - AI makes random moves"
+                    >
+                        <span class="difficulty-icon">🎯</span>
+                        <span class="difficulty-name">Easy</span>
+                        <span class="difficulty-desc">Random moves</span>
+                    </button>
+                    
+                    <button 
+                        type="button" 
+                        class="difficulty-btn active" 
+                        data-difficulty="medium"
+                        role="radio"
+                        aria-checked="true"
+                        aria-label="Medium difficulty - AI uses basic strategy"
+                    >
+                        <span class="difficulty-icon">⚡</span>
+                        <span class="difficulty-name">Medium</span>
+                        <span class="difficulty-desc">Basic strategy</span>
+                    </button>
+                    
+                    <button 
+                        type="button" 
+                        class="difficulty-btn" 
+                        data-difficulty="hard"
+                        role="radio"
+                        aria-checked="false"
+                        aria-label="Hard difficulty - AI uses optimal minimax algorithm"
+                    >
+                        <span class="difficulty-icon">🧠</span>
+                        <span class="difficulty-name">Hard</span>
+                        <span class="difficulty-desc">Unbeatable AI</span>
+                    </button>
+                </div>
+                <p class="difficulty-info" id="difficulty-info" aria-live="polite">
+                    Current difficulty: <strong id="current-difficulty">Medium</strong>
+                </p>
+            </section>
+
+            <!-- Game Board -->
+            <section class="game-section">
+                <div class="game-status" aria-live="polite" aria-atomic="true">
+                    <p id="status-message">Your turn (X)</p>
+                </div>
+
+                <div class="game-board" role="grid" aria-label="Tic-tac-toe game board">
+                    <button class="cell" data-index="0" aria-label="Cell 1"></button>
+                    <button class="cell" data-index="1" aria-label="Cell 2"></button>
+                    <button class="cell" data-index="2" aria-label="Cell 3"></button>
+                    <button class="cell" data-index="3" aria-label="Cell 4"></button>
+                    <button class="cell" data-index="4" aria-label="Cell 5"></button>
+                    <button class="cell" data-index="5" aria-label="Cell 6"></button>
+                    <button class="cell" data-index="6" aria-label="Cell 7"></button>
+                    <button class="cell" data-index="7" aria-label="Cell 8"></button>
+                    <button class="cell" data-index="8" aria-label="Cell 9"></button>
+                </div>
+
+                <div class="game-controls">
+                    <button id="new-game-btn" class="btn btn-primary">
+                        New Game
+                    </button>
+                    <button id="reset-stats-btn" class="btn btn-secondary">
+                        Reset Stats
+                    </button>
+                </div>
+
+                <!-- Score Display -->
+                <div class="scoreboard">
+                    <div class="score-item">
+                        <span class="score-label">Wins</span>
+                        <span class="score-value" id="wins">0</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-label">Losses</span>
+                        <span class="score-value" id="losses">0</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-label">Draws</span>
+                        <span class="score-value" id="draws">0</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Built by an agentic development team</p>
+        </footer>
+    </div>
+
+    <!-- Difficulty Change Modal -->
+    <div id="difficulty-modal" class="modal" role="dialog" aria-labelledby="modal-title" aria-modal="true" hidden>
+        <div class="modal-content">
+            <h3 id="modal-title">Change Difficulty?</h3>
+            <p>Changing difficulty will restart the current game. Continue?</p>
+            <div class="modal-actions">
+                <button id="modal-confirm" class="btn btn-primary">Yes, Change</button>
+                <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
