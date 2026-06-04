@@ -35,7 +35,10 @@ class UIController {
             draws: document.getElementById('draws'),
             modal: document.getElementById('difficulty-modal'),
             modalConfirm: document.getElementById('modal-confirm'),
-            modalCancel: document.getElementById('modal-cancel')
+            modalCancel: document.getElementById('modal-cancel'),
+            streakCounter: document.getElementById('streak-counter'),
+            currentStreak: document.getElementById('current-streak'),
+            bestStreak: document.getElementById('best-streak')
         };
     }
 
@@ -47,6 +50,7 @@ class UIController {
         this.updateUI();
         this.updateDifficultyUI();
         this.updateStats();
+        this.updateStreakDisplay();
     }
 
     /**
@@ -216,6 +220,7 @@ class UIController {
         if (confirm('Are you sure you want to reset all statistics?')) {
             this.game.resetStats();
             this.updateStats();
+            this.updateStreakDisplay();
         }
     }
 
@@ -318,6 +323,18 @@ class UIController {
 
         // Update stats
         this.updateStats();
+
+        // Update streak display
+        this.updateStreakDisplay();
+
+        // Trigger confetti if player won with streak >= 3
+        if (state.isGameOver && state.winner === 'X') {
+            const tier = this.getStreakTier(state.stats.currentStreak);
+            if (tier > 0) {
+                // Small delay to let DOM update settle
+                setTimeout(() => this.triggerConfetti(tier), 100);
+            }
+        }
     }
 
     /**
@@ -334,17 +351,26 @@ class UIController {
 
         if (state.isGameOver) {
             if (state.winner === 'X') {
-                this.elements.statusMessage.textContent = '🎉 You won!';
+                const streak = state.stats.currentStreak;
+                if (streak >= 10) {
+                    this.elements.statusMessage.textContent = '🎉 You won! 🔥🔥🔥 LEGENDARY streak!';
+                } else if (streak >= 5) {
+                    this.elements.statusMessage.textContent = `🎉 You won! 🔥🔥 ${streak}-win streak!`;
+                } else if (streak >= 3) {
+                    this.elements.statusMessage.textContent = `🎉 You won! 🔥 ${streak}-win streak!`;
+                } else {
+                    this.elements.statusMessage.textContent = '🎉 You won!';
+                }
             } else if (state.winner === 'O') {
                 this.elements.statusMessage.textContent = '😔 AI won!';
             } else {
-                this.elements.statusMessage.textContent = '🤝 It\'s a draw!';
+                this.elements.statusMessage.textContent = "🤝 It's a draw!";
             }
         } else {
             if (state.currentPlayer === 'X') {
                 this.elements.statusMessage.textContent = 'Your turn (X)';
             } else {
-                this.elements.statusMessage.textContent = 'AI\'s turn (O)';
+                this.elements.statusMessage.textContent = "AI's turn (O)";
             }
         }
     }
@@ -377,6 +403,247 @@ class UIController {
         this.elements.wins.textContent = stats.wins;
         this.elements.losses.textContent = stats.losses;
         this.elements.draws.textContent = stats.draws;
+    }
+
+    /**
+     * Get the streak tier based on current streak
+     * @param {number} streak - Current streak value
+     * @returns {number} Tier: 0 (none), 1 (3-4), 2 (5-9), 3 (10+)
+     */
+    getStreakTier(streak) {
+        if (streak >= 10) return 3;
+        if (streak >= 5) return 2;
+        if (streak >= 3) return 1;
+        return 0;
+    }
+
+    /**
+     * Update streak counter display
+     */
+    updateStreakDisplay() {
+        const stats = this.game.stats;
+        const streakCounter = this.elements.streakCounter;
+
+        if (!streakCounter) return;
+
+        this.elements.currentStreak.textContent = stats.currentStreak;
+        this.elements.bestStreak.textContent = stats.bestStreak;
+
+        // Show/hide based on streak
+        if (stats.currentStreak >= 1 || stats.bestStreak >= 1) {
+            streakCounter.classList.add('visible');
+        } else {
+            streakCounter.classList.remove('visible');
+        }
+
+        // Remove all tier classes
+        streakCounter.classList.remove('tier-1', 'tier-2', 'tier-3');
+
+        // Apply tier class
+        const tier = this.getStreakTier(stats.currentStreak);
+        if (tier > 0) {
+            streakCounter.classList.add(`tier-${tier}`);
+        }
+    }
+
+    /**
+     * Check if reduced motion is preferred
+     * @returns {boolean} True if user prefers reduced motion
+     */
+    prefersReducedMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    /**
+     * Trigger confetti celebration
+     * @param {number} tier - Celebration tier (1, 2, or 3)
+     */
+    triggerConfetti(tier) {
+        if (this.prefersReducedMotion()) {
+            // Apply glow fallback for reduced motion
+            const streakCounter = this.elements.streakCounter;
+            if (streakCounter) {
+                streakCounter.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.4), 0 0 40px rgba(245, 158, 11, 0.2)';
+                setTimeout(() => {
+                    streakCounter.style.boxShadow = '';
+                }, 2000);
+            }
+            return;
+        }
+
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        canvas.id = 'confetti-canvas';
+        canvas.setAttribute('aria-hidden', 'true');
+        canvas.style.position = 'fixed';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.width = '100vw';
+        canvas.style.height = '100vh';
+        canvas.style.zIndex = '999';
+        canvas.style.pointerEvents = 'none';
+        document.body.appendChild(canvas);
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const ctx = canvas.getContext('2d');
+        const colors = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+        if (tier >= 3) {
+            colors.push('#fbbf24', '#f1f5f9');
+        }
+
+        // Determine particle count and duration based on tier
+        const isMobile = window.innerWidth <= 480;
+        const isTablet = window.innerWidth <= 768;
+        const countMultiplier = isMobile ? 0.5 : (isTablet ? 0.75 : 1);
+
+        let particleCount, duration, bursts;
+
+        if (tier >= 3) {
+            particleCount = Math.floor(200 * countMultiplier);
+            duration = 4000;
+            bursts = [0, 400, 800];
+        } else if (tier >= 2) {
+            particleCount = Math.floor(100 * countMultiplier);
+            duration = 3500;
+            bursts = [0, 500];
+        } else {
+            particleCount = Math.floor(50 * countMultiplier);
+            duration = 2500;
+            bursts = [0];
+        }
+
+        const particles = [];
+        const startTime = performance.now();
+        const particlesPerBurst = Math.floor(particleCount / bursts.length);
+
+        /**
+         * Create a single confetti particle
+         * @param {number} originX - X origin position
+         * @param {number} originY - Y origin position
+         * @returns {Object} Particle object
+         */
+        function createParticle(originX, originY) {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const type = Math.random();
+            let width, height;
+
+            if (type < 0.6) {
+                // Rectangle
+                width = 8 + Math.random() * 4;
+                height = 4 + Math.random() * 2;
+            } else if (type < 0.85) {
+                // Circle
+                width = height = (4 + Math.random() * 2) * 2;
+            } else {
+                // Streamer
+                width = 2;
+                height = 16;
+            }
+
+            return {
+                x: originX,
+                y: originY,
+                vx: (Math.random() - 0.5) * 600,
+                vy: -(600 + Math.random() * 600),
+                width,
+                height,
+                color,
+                rotation: Math.random() * 360,
+                rotationSpeed: (Math.random() - 0.5) * 720,
+                opacity: 1,
+                type: type < 0.6 ? 'rect' : (type < 0.85 ? 'circle' : 'streamer'),
+                drift: Math.random() * Math.PI * 2
+            };
+        }
+
+        // Schedule bursts
+        bursts.forEach((delay) => {
+            setTimeout(() => {
+                const originX = canvas.width / 2;
+                const originY = canvas.height * 0.6;
+                for (let i = 0; i < particlesPerBurst; i++) {
+                    particles.push(createParticle(originX, originY));
+                }
+            }, delay);
+        });
+
+        let lastTime = performance.now();
+
+        /**
+         * Animation loop for confetti
+         */
+        function animate() {
+            const now = performance.now();
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+            const elapsed = now - startTime;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let activeParticles = 0;
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+
+                // Physics
+                p.vy += 600 * dt;
+                p.vx *= 0.98;
+                p.vy *= 0.98;
+                p.x += p.vx * dt + Math.sin(elapsed / 1000 + p.drift) * 30 * dt;
+                p.y += p.vy * dt;
+                p.rotation += p.rotationSpeed * dt;
+
+                // Fade out in last 20% of duration
+                const fadeStart = duration * 0.8;
+                if (elapsed > fadeStart) {
+                    p.opacity = Math.max(0, 1 - (elapsed - fadeStart) / (duration * 0.2));
+                }
+
+                // Remove if off screen
+                if (p.y > canvas.height + 50 || p.opacity <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                activeParticles++;
+
+                // Draw
+                ctx.save();
+                ctx.globalAlpha = p.opacity;
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation * Math.PI / 180);
+                ctx.fillStyle = p.color;
+
+                if (p.type === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.width / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(-p.width / 2, -p.height / 2, p.width, p.height);
+                }
+
+                ctx.restore();
+            }
+
+            if (elapsed < duration || activeParticles > 0) {
+                requestAnimationFrame(animate);
+            } else {
+                if (canvas.parentNode) {
+                    canvas.remove();
+                }
+            }
+        }
+
+        requestAnimationFrame(animate);
+
+        // Safety cleanup — ensure canvas is removed even if animation glitches
+        setTimeout(() => {
+            if (canvas.parentNode) {
+                canvas.remove();
+            }
+        }, duration + 1000);
     }
 }
 
