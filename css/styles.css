@@ -67,6 +67,7 @@ body {
 }
 
 header {
+    position: relative;
     text-align: center;
     margin-bottom: var(--spacing-xl);
     animation: fadeInDown 0.6s ease-out;
@@ -99,6 +100,43 @@ footer {
     padding: var(--spacing-lg) 0;
     color: var(--text-muted);
     font-size: 0.9rem;
+}
+
+/* ===========================
+   Theme Toggle Button
+   =========================== */
+.theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 44px;
+    height: 44px;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0;
+    color: var(--text-primary);
+}
+
+.theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: rotate(15deg);
+}
+
+.theme-toggle:focus-visible {
+    outline: 3px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.theme-toggle:active {
+    transform: scale(0.9);
 }
 
 /* ===========================
@@ -534,6 +572,10 @@ footer {
     .btn {
         width: 100%;
     }
+
+    .theme-toggle {
+        top: -4px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -596,4 +638,84 @@ footer {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border-width: 0;
+}
+
+/* ===========================
+   Light Theme
+   =========================== */
+[data-theme="light"] {
+    --primary-color: #4f46e5;
+    --primary-hover: #4338ca;
+    --primary-active: #3730a3;
+    --secondary-color: #64748b;
+    --secondary-hover: #475569;
+
+    --bg-color: #f8fafc;
+    --surface-color: #ffffff;
+    --surface-hover: #f1f5f9;
+
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+
+    --success-color: #059669;
+    --danger-color: #dc2626;
+    --warning-color: #d97706;
+
+    --easy-color: #059669;
+    --medium-color: #d97706;
+    --hard-color: #dc2626;
+}
+
+[data-theme="light"] body {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+[data-theme="light"] .difficulty-selector,
+[data-theme="light"] .game-section {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .cell {
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .score-item {
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .difficulty-btn {
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .modal {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .modal-content {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .theme-toggle:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] header h1 {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ===========================
+   Theme Transition (added via JS after first toggle)
+   =========================== */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+    transition: background-color 0.3s ease,
+                color 0.3s ease,
+                border-color 0.3s ease,
+                box-shadow 0.3s ease !important;
 }

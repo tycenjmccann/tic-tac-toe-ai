@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic-Tac-Toe vs AI</title>
+    <script>
+        (function() {
+            var stored = localStorage.getItem('theme');
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var theme = stored || (prefersDark ? 'dark' : 'light');
+            if (theme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -11,6 +21,11 @@
         <header>
             <h1>Tic-Tac-Toe vs AI</h1>
             <p class="subtitle">Challenge the AI at different difficulty levels</p>
+            <button class="theme-toggle" id="theme-toggle"
+                    aria-label="Switch to light theme"
+                    title="Toggle theme">
+                <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
+            </button>
         </header>
 
         <main>
