@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Reset Race Condition Tests (TEAM-1592)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+        /* Hide game UI elements used for testing */
+        .game-container { display: none; }
+    </style>
+</head>
+<body>
+    <h1>🧪 UI Reset Race Condition Tests (TEAM-1592)</h1>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <!-- Minimal DOM structure required by UIController -->
+    <div class="game-container">
+        <div id="status-message">Your turn (X)</div>
+        <div class="board">
+            <button class="cell" data-index="0"></button>
+            <button class="cell" data-index="1"></button>
+            <button class="cell" data-index="2"></button>
+            <button class="cell" data-index="3"></button>
+            <button class="cell" data-index="4"></button>
+            <button class="cell" data-index="5"></button>
+            <button class="cell" data-index="6"></button>
+            <button class="cell" data-index="7"></button>
+            <button class="cell" data-index="8"></button>
+        </div>
+        <button id="new-game-btn">New Game</button>
+        <button id="reset-stats-btn">Reset Stats</button>
+        <div>
+            <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+            <button class="difficulty-btn" data-difficulty="medium">Medium</button>
+            <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+        </div>
+        <span id="current-difficulty">Medium</span>
+        <span id="wins">0</span>
+        <span id="losses">0</span>
+        <span id="draws">0</span>
+        <div id="difficulty-modal" hidden aria-hidden="true">
+            <button id="modal-confirm">Confirm</button>
+            <button id="modal-cancel">Cancel</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { UIController } from '../js/ui.js';
+
+        /**
+         * Simple test framework (same pattern as game.test.html)
+         */
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = {
+                    name,
+                    tests: [],
+                    beforeEach: null
+                };
+                this.suites.push(suite);
+
+                const testContext = {
+                    test: (testName, testFn) => {
+                        suite.tests.push({ name: testName, fn: testFn });
+                    },
+                    beforeEach: (fn) => {
+                        suite.beforeEach = fn;
+                    }
+                };
+
+                callback(testContext);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) {
+                            testState = suite.beforeEach();
+                        }
+
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `
+                                ❌ ${test.name}
+                                <pre class="error">${error.message}</pre>
+                            `;
+                            this.failed++;
+                        }
+
+                        suiteDiv.appendChild(testDiv);
+                    }
+
+                    resultsDiv.appendChild(suiteDiv);
+                }
+
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const percentage = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat">
+                        <strong>Total:</strong> ${total}
+                    </div>
+                    <div class="summary-stat success">
+                        <strong>Passed:</strong> ${this.passed}
+                    </div>
+                    <div class="summary-stat error">
+                        <strong>Failed:</strong> ${this.failed}
+                    </div>
+                    <div class="summary-stat">
+                        <strong>Success Rate:</strong> ${percentage}%
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Assertion helpers
+         */
+        function assert(condition, message = 'Assertion failed') {
+            if (!condition) {
+                throw new Error(message);
+            }
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(
+                    message || `Expected ${expected} but got ${actual}`
+                );
+            }
+        }
+
+        function assertTrue(value, message = 'Value should be true') {
+            if (value !== true) {
+                throw new Error(message);
+            }
+        }
+
+        function assertFalse(value, message = 'Value should be false') {
+            if (value !== false) {
+                throw new Error(message);
+            }
+        }
+
+        /**
+         * Test Suites
+         */
+        const runner = new TestRunner();
+
+        // Reset Race Condition Regression Tests
+        runner.suite('Reset Race Condition — gameEpoch Guard (TEAM-1592)', ({ test }) => {
+
+            test('UIController should have gameEpoch property initialized to 0', () => {
+                const ui = new UIController();
+                assertEqual(ui.gameEpoch, 0, 'gameEpoch should be initialized to 0');
+            });
+
+            test('handleNewGame should increment gameEpoch', () => {
+                const ui = new UIController();
+                const initialEpoch = ui.gameEpoch;
+                ui.handleNewGame();
+                assertEqual(ui.gameEpoch, initialEpoch + 1,
+                    'gameEpoch should increment on handleNewGame()');
+            });
+
+            test('handleNewGame should set isAIThinking to false', () => {
+                const ui = new UIController();
+                ui.isAIThinking = true; // Simulate AI mid-computation
+                ui.handleNewGame();
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false after handleNewGame()');
+            });
+
+            test('makeAIMove should NOT apply move if game was reset during delay', async () => {
+                const ui = new UIController();
+
+                // Player makes a move to set up AI turn
+                ui.game.makeMove(0, 'X');
+
+                // Start AI move (it will delay 300ms)
+                const aiMovePromise = ui.makeAIMove();
+
+                // Immediately reset the game (simulating clicking New Game mid-AI-think)
+                ui.handleNewGame();
+
+                // Wait for the AI move promise to resolve
+                await aiMovePromise;
+
+                // The board should be completely empty — no stale AI move applied
+                const state = ui.game.getState();
+                const hasAnyMove = state.board.some(cell => cell !== null);
+                assertFalse(hasAnyMove,
+                    'Board should be empty after reset — stale AI move must NOT be applied. ' +
+                    'Got board: [' + state.board.join(', ') + ']');
+            });
+
+            test('makeAIMove should NOT apply move if game was reset multiple times during delay', async () => {
+                const ui = new UIController();
+
+                ui.game.makeMove(0, 'X');
+                const aiMovePromise = ui.makeAIMove();
+
+                // Reset multiple times rapidly
+                ui.handleNewGame();
+                ui.handleNewGame();
+
+                await aiMovePromise;
+
+                const state = ui.game.getState();
+                const hasAnyMove = state.board.some(cell => cell !== null);
+                assertFalse(hasAnyMove,
+                    'Board should be empty after multiple resets during AI thinking');
+            });
+
+            test('isAIThinking remains false after reset cancels in-flight AI move', async () => {
+                const ui = new UIController();
+
+                ui.game.makeMove(0, 'X');
+                const aiMovePromise = ui.makeAIMove();
+
+                // At this point isAIThinking should be true
+                assertTrue(ui.isAIThinking,
+                    'isAIThinking should be true while AI is computing');
+
+                // Reset cancels the in-flight move
+                ui.handleNewGame();
+
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false immediately after handleNewGame()');
+
+                await aiMovePromise;
+
+                // Should still be false — the cancelled makeAIMove must not set it
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should remain false after cancelled AI move resolves');
+            });
+
+            test('win detection works correctly on new game after mid-AI reset', async () => {
+                const ui = new UIController();
+
+                // Play a move and trigger AI
+                ui.game.makeMove(4, 'X'); // X takes center
+                const aiMovePromise = ui.makeAIMove();
+
+                // Reset during AI thinking
+                ui.handleNewGame();
+                await aiMovePromise;
+
+                // Now play a full new game: X wins with top row [0,1,2]
+                ui.game.makeMove(0, 'X');
+                ui.game.makeMove(3, 'O');
+                ui.game.makeMove(1, 'X');
+                ui.game.makeMove(4, 'O');
+                ui.game.makeMove(2, 'X'); // X wins
+
+                assertTrue(ui.game.isGameOver,
+                    'Game should be over after X wins top row');
+                assertEqual(ui.game.winner, 'X',
+                    'X should be the winner after completing top row');
+            });
+
+            test('normal AI move still works when game is NOT reset', async () => {
+                const ui = new UIController();
+
+                // Player makes a move
+                ui.game.makeMove(4, 'X'); // X takes center
+
+                // AI makes its move (no reset happens)
+                await ui.makeAIMove();
+
+                // Board should have both X and O
+                const state = ui.game.getState();
+                const xCount = state.board.filter(c => c === 'X').length;
+                const oCount = state.board.filter(c => c === 'O').length;
+                assertEqual(xCount, 1, 'Should have 1 X on the board');
+                assertEqual(oCount, 1, 'Should have 1 O on the board (AI moved normally)');
+            });
+        });
+
+        // Run all tests
+        console.log('🚀 Starting UI reset race condition tests...');
+        await runner.run();
+        console.log('✅ All tests complete!');
+    </script>
+</body>
+</html>

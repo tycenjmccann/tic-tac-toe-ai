@@ -14,6 +14,7 @@ class UIController {
         this.elements = this.getElements();
         this.pendingDifficulty = null;
         this.isAIThinking = false;
+        this.gameEpoch = 0;
         
         this.init();
     }
@@ -172,11 +173,17 @@ class UIController {
      * Make AI move with delay for better UX
      */
     async makeAIMove() {
+        const epoch = this.gameEpoch;
         this.isAIThinking = true;
         this.updateStatusMessage('AI is thinking...');
 
         // Small delay to show "thinking" state
         await this.delay(300);
+
+        // If game was reset during the delay, discard this move
+        if (epoch !== this.gameEpoch) {
+            return;
+        }
 
         const aiMove = this.game.getAIMove();
         if (aiMove !== null) {
@@ -200,6 +207,8 @@ class UIController {
      * Handle new game button click
      */
     handleNewGame() {
+        this.gameEpoch++;
+        this.isAIThinking = false;
         this.game.reset();
         this.updateUI();
         
