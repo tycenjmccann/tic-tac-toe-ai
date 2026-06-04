@@ -64,6 +64,27 @@
 
             <!-- Game Board -->
             <section class="game-section">
+                <!-- Score Display — RELOCATED above game board -->
+                <div class="scoreboard-container" role="region" aria-label="Game scoreboard" aria-live="polite" aria-atomic="true">
+                    <div class="round-indicator" aria-label="Current round">
+                        <span class="round-text">Round <span id="round-number">1</span></span>
+                    </div>
+                    <div class="scoreboard">
+                        <div class="score-item score-player" id="score-player-item">
+                            <span class="score-label">Player (X)</span>
+                            <span class="score-value" id="wins">0</span>
+                        </div>
+                        <div class="score-item score-draws">
+                            <span class="score-label">Draws</span>
+                            <span class="score-value" id="draws">0</span>
+                        </div>
+                        <div class="score-item score-ai" id="score-ai-item">
+                            <span class="score-label">AI (O)</span>
+                            <span class="score-value" id="losses">0</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="game-status" aria-live="polite" aria-atomic="true">
                     <p id="status-message">Your turn (X)</p>
                 </div>
@@ -87,22 +108,6 @@
                     <button id="reset-stats-btn" class="btn btn-secondary">
                         Reset Stats
                     </button>
-                </div>
-
-                <!-- Score Display -->
-                <div class="scoreboard">
-                    <div class="score-item">
-                        <span class="score-label">Wins</span>
-                        <span class="score-value" id="wins">0</span>
-                    </div>
-                    <div class="score-item">
-                        <span class="score-label">Losses</span>
-                        <span class="score-value" id="losses">0</span>
-                    </div>
-                    <div class="score-item">
-                        <span class="score-label">Draws</span>
-                        <span class="score-value" id="draws">0</span>
-                    </div>
                 </div>
             </section>
         </main>
