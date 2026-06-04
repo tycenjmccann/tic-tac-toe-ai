@@ -369,6 +369,42 @@ footer {
     box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4);
 }
 
+.btn-warning {
+    background: var(--warning-color);
+    color: #1e293b;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: #d97706;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.btn-warning:active:not(:disabled) {
+    background: #b45309;
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.btn-warning:focus {
+    outline: 2px solid var(--warning-color);
+    outline-offset: 2px;
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.btn:disabled:hover,
+.btn[aria-disabled="true"]:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 /* ===========================
    Scoreboard
    =========================== */

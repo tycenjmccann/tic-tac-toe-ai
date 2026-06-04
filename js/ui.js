@@ -27,6 +27,7 @@ class UIController {
             cells: document.querySelectorAll('.cell'),
             statusMessage: document.getElementById('status-message'),
             newGameBtn: document.getElementById('new-game-btn'),
+            undoBtn: document.getElementById('undo-btn'),
             resetStatsBtn: document.getElementById('reset-stats-btn'),
             difficultyButtons: document.querySelectorAll('.difficulty-btn'),
             currentDifficulty: document.getElementById('current-difficulty'),
@@ -73,6 +74,9 @@ class UIController {
 
         // Reset stats button
         this.elements.resetStatsBtn.addEventListener('click', () => this.handleResetStats());
+
+        // Undo button
+        this.elements.undoBtn.addEventListener('click', () => this.handleUndo());
 
         // Difficulty selection
         this.elements.difficultyButtons.forEach(btn => {
@@ -173,6 +177,7 @@ class UIController {
      */
     async makeAIMove() {
         this.isAIThinking = true;
+        this.updateUndoButton();
         this.updateStatusMessage('AI is thinking...');
 
         // Small delay to show "thinking" state
@@ -185,6 +190,7 @@ class UIController {
         }
 
         this.isAIThinking = false;
+        this.updateUndoButton();
     }
 
     /**
@@ -216,6 +222,36 @@ class UIController {
         if (confirm('Are you sure you want to reset all statistics?')) {
             this.game.resetStats();
             this.updateStats();
+        }
+    }
+
+    /**
+     * Handle undo button click
+     */
+    handleUndo() {
+        if (this.isAIThinking) return;
+
+        const success = this.game.undoLastMove();
+        if (success) {
+            this.updateUI();
+        }
+    }
+
+    /**
+     * Update undo button state
+     */
+    updateUndoButton() {
+        const hasHistory = this.game.moveHistory.length > 0;
+        const canUndo = hasHistory && !this.isAIThinking;
+
+        this.elements.undoBtn.disabled = !canUndo;
+
+        if (!hasHistory) {
+            this.elements.undoBtn.title = 'No moves to undo';
+        } else if (this.isAIThinking) {
+            this.elements.undoBtn.title = 'Cannot undo while AI is thinking';
+        } else {
+            this.elements.undoBtn.removeAttribute('title');
         }
     }
 
@@ -318,6 +354,9 @@ class UIController {
 
         // Update stats
         this.updateStats();
+
+        // Update undo button state
+        this.updateUndoButton();
     }
 
     /**
