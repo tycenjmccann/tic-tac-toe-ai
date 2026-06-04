@@ -24,6 +24,7 @@
                         data-difficulty="easy"
                         role="radio"
                         aria-checked="false"
+                        tabindex="-1"
                         aria-label="Easy difficulty - AI makes random moves"
                     >
                         <span class="difficulty-icon">🎯</span>
@@ -37,6 +38,7 @@
                         data-difficulty="medium"
                         role="radio"
                         aria-checked="true"
+                        tabindex="0"
                         aria-label="Medium difficulty - AI uses basic strategy"
                     >
                         <span class="difficulty-icon">⚡</span>
@@ -50,6 +52,7 @@
                         data-difficulty="hard"
                         role="radio"
                         aria-checked="false"
+                        tabindex="-1"
                         aria-label="Hard difficulty - AI uses optimal minimax algorithm"
                     >
                         <span class="difficulty-icon">🧠</span>
@@ -69,20 +72,26 @@
                 </div>
 
                 <div class="game-board" role="grid" aria-label="Tic-tac-toe game board">
-                    <button class="cell" data-index="0" aria-label="Cell 1"></button>
-                    <button class="cell" data-index="1" aria-label="Cell 2"></button>
-                    <button class="cell" data-index="2" aria-label="Cell 3"></button>
-                    <button class="cell" data-index="3" aria-label="Cell 4"></button>
-                    <button class="cell" data-index="4" aria-label="Cell 5"></button>
-                    <button class="cell" data-index="5" aria-label="Cell 6"></button>
-                    <button class="cell" data-index="6" aria-label="Cell 7"></button>
-                    <button class="cell" data-index="7" aria-label="Cell 8"></button>
-                    <button class="cell" data-index="8" aria-label="Cell 9"></button>
+                    <div role="row" aria-rowindex="1">
+                        <button class="cell" role="gridcell" data-index="0" tabindex="0" aria-label="Row 1, Column 1: empty" aria-colindex="1"></button>
+                        <button class="cell" role="gridcell" data-index="1" tabindex="-1" aria-label="Row 1, Column 2: empty" aria-colindex="2"></button>
+                        <button class="cell" role="gridcell" data-index="2" tabindex="-1" aria-label="Row 1, Column 3: empty" aria-colindex="3"></button>
+                    </div>
+                    <div role="row" aria-rowindex="2">
+                        <button class="cell" role="gridcell" data-index="3" tabindex="-1" aria-label="Row 2, Column 1: empty" aria-colindex="1"></button>
+                        <button class="cell" role="gridcell" data-index="4" tabindex="-1" aria-label="Row 2, Column 2: empty" aria-colindex="2"></button>
+                        <button class="cell" role="gridcell" data-index="5" tabindex="-1" aria-label="Row 2, Column 3: empty" aria-colindex="3"></button>
+                    </div>
+                    <div role="row" aria-rowindex="3">
+                        <button class="cell" role="gridcell" data-index="6" tabindex="-1" aria-label="Row 3, Column 1: empty" aria-colindex="1"></button>
+                        <button class="cell" role="gridcell" data-index="7" tabindex="-1" aria-label="Row 3, Column 2: empty" aria-colindex="2"></button>
+                        <button class="cell" role="gridcell" data-index="8" tabindex="-1" aria-label="Row 3, Column 3: empty" aria-colindex="3"></button>
+                    </div>
                 </div>
 
                 <div class="game-controls">
-                    <button id="new-game-btn" class="btn btn-primary">
-                        New Game
+                    <button id="new-game-btn" class="btn btn-primary" aria-keyshortcuts="n">
+                        New Game <span class="kbd-hint">(N)</span>
                     </button>
                     <button id="reset-stats-btn" class="btn btn-secondary">
                         Reset Stats

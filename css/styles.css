@@ -36,6 +36,9 @@
     --medium-color: #f59e0b;
     --hard-color: #ef4444;
     
+    /* Focus Color */
+    --focus-color: #a78bfa;
+    
     /* Spacing */
     --spacing-xs: 0.5rem;
     --spacing-sm: 1rem;
@@ -162,9 +165,17 @@ footer {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-.difficulty-btn:focus {
-    outline: 2px solid var(--primary-color);
+/* Difficulty button focus — prominent ring */
+.difficulty-btn:focus-visible {
+    outline: 3px solid var(--focus-color);
     outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.3);
+    transform: none;
+}
+
+.difficulty-btn:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
 }
 
 .difficulty-btn.active {
@@ -251,6 +262,11 @@ footer {
     aspect-ratio: 1;
 }
 
+/* Make role="row" wrappers transparent to grid layout */
+.game-board > [role="row"] {
+    display: contents;
+}
+
 .cell {
     background: var(--bg-color);
     border: 2px solid var(--surface-hover);
@@ -289,14 +305,43 @@ footer {
     box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
 }
 
-.cell:focus {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
+/* Cell focus — prominent ring + glow (keyboard only) */
+.cell:focus-visible {
+    outline: 3px solid var(--focus-color);
+    outline-offset: 3px;
+    box-shadow: 
+        0 0 0 3px rgba(167, 139, 250, 0.4),
+        0 0 12px rgba(167, 139, 250, 0.3);
+    border-color: var(--focus-color);
+    transform: none;
+    z-index: 1;
+    transition: outline-offset 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Remove focus ring on mouse click */
+.cell:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Active/pressed cell */
+.cell:active:not(:disabled) {
+    transform: scale(0.95);
+    outline-color: #c4b5fd;
+    background: rgba(167, 139, 250, 0.1);
 }
 
 .cell:disabled {
     cursor: not-allowed;
     opacity: 0.8;
+}
+
+/* Disabled cell focus (game-over state) */
+.cell:disabled:focus-visible {
+    outline: 2px dashed #64748b;
+    outline-offset: 2px;
+    box-shadow: none;
+    border-color: var(--surface-hover);
 }
 
 .cell.winning {
@@ -337,9 +382,15 @@ footer {
     gap: var(--spacing-xs);
 }
 
-.btn:focus {
-    outline: 2px solid var(--primary-color);
-    outline-offset: 2px;
+/* Action button focus — prominent ring */
+.btn:focus-visible {
+    outline: 3px solid var(--focus-color);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.4);
+}
+
+.btn:focus:not(:focus-visible) {
+    outline: none;
 }
 
 .btn-primary {
@@ -367,6 +418,13 @@ footer {
     background: var(--secondary-hover);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4);
+}
+
+/* Keyboard shortcut hint styling */
+.kbd-hint {
+    font-size: 0.8em;
+    opacity: 0.7;
+    font-weight: 400;
 }
 
 /* ===========================
@@ -566,6 +624,12 @@ footer {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+
+    .cell:focus-visible,
+    .difficulty-btn:focus-visible,
+    .btn:focus-visible {
+        transition: none;
+    }
 }
 
 /* High contrast mode support */
@@ -577,12 +641,20 @@ footer {
     .difficulty-btn.active {
         border-width: 3px;
     }
-}
 
-/* Focus visible for keyboard navigation */
-:focus-visible {
-    outline: 3px solid var(--primary-color);
-    outline-offset: 2px;
+    .cell:focus-visible {
+        outline: 4px solid #ffffff;
+        outline-offset: 4px;
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6);
+        border-color: #ffffff;
+    }
+
+    .difficulty-btn:focus-visible,
+    .btn:focus-visible {
+        outline: 4px solid #ffffff;
+        outline-offset: 3px;
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6);
+    }
 }
 
 /* Screen reader only content */
