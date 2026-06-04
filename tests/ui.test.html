@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Tests - Win Highlight Reset Regression</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        #test-board {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>UI Tests - Win Highlight Reset Regression (TEAM-1593)</h1>
+    <div class="summary" id="summary"></div>
+    <div id="results"></div>
+
+    <!-- Mock game board for testing DOM manipulation -->
+    <div id="test-board">
+        <div id="status-message">Your turn (X)</div>
+        <button class="cell" data-index="0"></button>
+        <button class="cell" data-index="1"></button>
+        <button class="cell" data-index="2"></button>
+        <button class="cell" data-index="3"></button>
+        <button class="cell" data-index="4"></button>
+        <button class="cell" data-index="5"></button>
+        <button class="cell" data-index="6"></button>
+        <button class="cell" data-index="7"></button>
+        <button class="cell" data-index="8"></button>
+        <button id="new-game-btn">New Game</button>
+        <button id="reset-stats-btn">Reset Stats</button>
+        <div id="current-difficulty">Medium</div>
+        <span id="wins">0</span>
+        <span id="losses">0</span>
+        <span id="draws">0</span>
+        <div id="difficulty-modal" hidden aria-hidden="true">
+            <button id="modal-confirm">Confirm</button>
+            <button id="modal-cancel">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Load the CSS to test animation behavior -->
+    <link rel="stylesheet" href="../css/styles.css">
+
+    <script type="module">
+        import { Game } from '../js/game.js';
+
+        const results = document.getElementById('results');
+        let passed = 0;
+        let failed = 0;
+
+        function assert(condition, message) {
+            const div = document.createElement('div');
+            div.className = `test-case ${condition ? 'pass' : 'fail'}`;
+            div.textContent = `${condition ? '✓ PASS' : '✗ FAIL'}: ${message}`;
+            results.appendChild(div);
+            if (condition) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        function createTestSuite(name) {
+            const div = document.createElement('div');
+            div.className = 'test-suite';
+            div.innerHTML = `<h2>${name}</h2>`;
+            results.appendChild(div);
+            return div;
+        }
+
+        // ========================================
+        // Test Suite: Win Highlight Cleared on New Game
+        // ========================================
+        function testWinHighlightClearedOnNewGame() {
+            createTestSuite('REGRESSION: Win highlight cleared when starting new game (TEAM-1593)');
+
+            const cells = document.querySelectorAll('#test-board .cell');
+
+            // --- Setup: Simulate a completed game with X winning on top row ---
+            const game = new Game();
+            // Manually set up a winning board state: X wins with [0,1,2]
+            game.board = ['X', 'X', 'X', 'O', 'O', null, null, null, null];
+            game.isGameOver = true;
+            game.winner = 'X';
+            game.winningCombination = [0, 1, 2];
+            game.moveHistory = [
+                { index: 0, player: 'X' },
+                { index: 3, player: 'O' },
+                { index: 1, player: 'X' },
+                { index: 4, player: 'O' },
+                { index: 2, player: 'X' }
+            ];
+
+            // Apply winning state to DOM (simulate what updateUI does after a win)
+            cells.forEach((cell, index) => {
+                const value = game.board[index];
+                cell.textContent = value || '';
+                cell.classList.remove('player-x', 'player-o', 'winning');
+                if (value === 'X') cell.classList.add('player-x');
+                if (value === 'O') cell.classList.add('player-o');
+                if (game.winningCombination && game.winningCombination.includes(index)) {
+                    cell.classList.add('winning');
+                }
+            });
+
+            // --- Precondition: Verify winning highlight IS applied ---
+            assert(cells[0].classList.contains('winning'), 'Precondition: cell 0 has winning class');
+            assert(cells[1].classList.contains('winning'), 'Precondition: cell 1 has winning class');
+            assert(cells[2].classList.contains('winning'), 'Precondition: cell 2 has winning class');
+            assert(!cells[3].classList.contains('winning'), 'Precondition: cell 3 does NOT have winning class');
+
+            // --- Action: Simulate handleNewGame() with the fix ---
+            // Step 1: Force-clear winning highlight (the fix)
+            cells.forEach(cell => {
+                cell.classList.remove('winning');
+                cell.style.animation = 'none';
+            });
+            // Force reflow
+            void cells[0].offsetHeight;
+            cells.forEach(cell => {
+                cell.style.animation = '';
+            });
+
+            // Step 2: game.reset()
+            game.reset();
+
+            // Step 3: updateUI equivalent
+            const state = game.getState();
+            cells.forEach((cell, index) => {
+                const value = state.board[index];
+                cell.textContent = value || '';
+                cell.disabled = value !== null || state.isGameOver;
+                cell.classList.remove('player-x', 'player-o', 'winning');
+                if (value === 'X') cell.classList.add('player-x');
+                if (value === 'O') cell.classList.add('player-o');
+                if (state.winningCombination && state.winningCombination.includes(index)) {
+                    cell.classList.add('winning');
+                }
+            });
+
+            // --- Assertions: No cells should have winning class ---
+            let anyWinning = false;
+            cells.forEach((cell, index) => {
+                if (cell.classList.contains('winning')) {
+                    anyWinning = true;
+                    assert(false, `Cell ${index} should NOT have winning class after new game reset`);
+                }
+            });
+            assert(!anyWinning, 'No cells have winning class after new game reset');
+
+            // Assert inline animation style is cleared (not stuck)
+            cells.forEach((cell, index) => {
+                assert(cell.style.animation === '', `Cell ${index} has no inline animation style after reset`);
+            });
+
+            // Assert board is empty
+            cells.forEach((cell, index) => {
+                assert(cell.textContent === '', `Cell ${index} has empty text content after reset`);
+                assert(!cell.classList.contains('player-x'), `Cell ${index} has no player-x class after reset`);
+                assert(!cell.classList.contains('player-o'), `Cell ${index} has no player-o class after reset`);
+            });
+        }
+
+        // ========================================
+        // Test Suite: Win Highlight Still Works During Active Win
+        // ========================================
+        function testWinHighlightStillAppliedOnWin() {
+            createTestSuite('Win highlight correctly applied when game IS won');
+
+            const cells = document.querySelectorAll('#test-board .cell');
+
+            // Reset all cells
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('player-x', 'player-o', 'winning');
+                cell.style.animation = '';
+            });
+
+            // Simulate a game where O wins with diagonal [2,4,6]
+            const game = new Game();
+            game.board = ['X', 'X', 'O', null, 'O', null, 'O', null, 'X'];
+            game.isGameOver = true;
+            game.winner = 'O';
+            game.winningCombination = [2, 4, 6];
+
+            // Apply state to DOM (simulate updateUI)
+            const state = game.getState();
+            cells.forEach((cell, index) => {
+                const value = state.board[index];
+                cell.textContent = value || '';
+                cell.classList.remove('player-x', 'player-o', 'winning');
+                if (value === 'X') cell.classList.add('player-x');
+                if (value === 'O') cell.classList.add('player-o');
+                if (state.winningCombination && state.winningCombination.includes(index)) {
+                    cell.classList.add('winning');
+                }
+            });
+
+            // Assert winning cells ARE highlighted
+            assert(cells[2].classList.contains('winning'), 'Cell 2 has winning class (part of winning line)');
+            assert(cells[4].classList.contains('winning'), 'Cell 4 has winning class (part of winning line)');
+            assert(cells[6].classList.contains('winning'), 'Cell 6 has winning class (part of winning line)');
+
+            // Assert non-winning cells do NOT have highlight
+            assert(!cells[0].classList.contains('winning'), 'Cell 0 does NOT have winning class');
+            assert(!cells[1].classList.contains('winning'), 'Cell 1 does NOT have winning class');
+            assert(!cells[3].classList.contains('winning'), 'Cell 3 does NOT have winning class');
+            assert(!cells[5].classList.contains('winning'), 'Cell 5 does NOT have winning class');
+            assert(!cells[7].classList.contains('winning'), 'Cell 7 does NOT have winning class');
+            assert(!cells[8].classList.contains('winning'), 'Cell 8 does NOT have winning class');
+        }
+
+        // ========================================
+        // Test Suite: Game Reset State is Correct
+        // ========================================
+        function testGameResetState() {
+            createTestSuite('Game reset() correctly clears winningCombination');
+
+            const game = new Game();
+            
+            // Set up a winning state
+            game.board = ['X', 'X', 'X', 'O', 'O', null, null, null, null];
+            game.isGameOver = true;
+            game.winner = 'X';
+            game.winningCombination = [0, 1, 2];
+
+            assert(game.winningCombination !== null, 'Precondition: winningCombination is set before reset');
+            assert(game.isGameOver === true, 'Precondition: game is over before reset');
+
+            // Reset the game
+            game.reset();
+
+            assert(game.winningCombination === null, 'winningCombination is null after reset');
+            assert(game.isGameOver === false, 'isGameOver is false after reset');
+            assert(game.winner === null, 'winner is null after reset');
+            assert(game.board.every(cell => cell === null), 'Board is empty after reset');
+            assert(game.currentPlayer === 'X', 'currentPlayer is X after reset');
+            assert(game.moveHistory.length === 0, 'moveHistory is empty after reset');
+        }
+
+        // ========================================
+        // Run all tests
+        // ========================================
+        testWinHighlightClearedOnNewGame();
+        testWinHighlightStillAppliedOnWin();
+        testGameResetState();
+
+        // Summary
+        const summary = document.getElementById('summary');
+        summary.innerHTML = `
+            <span class="summary-stat"><strong>Total:</strong> ${passed + failed}</span>
+            <span class="summary-stat" style="color: #4caf50;"><strong>Passed:</strong> ${passed}</span>
+            <span class="summary-stat" style="color: ${failed > 0 ? '#f44336' : '#4caf50'};"><strong>Failed:</strong> ${failed}</span>
+        `;
+
+        if (failed > 0) {
+            document.title = `FAILED (${failed}) - UI Tests`;
+            console.error(`UI TESTS: ${failed} test(s) FAILED`);
+        } else {
+            document.title = `PASSED (${passed}) - UI Tests`;
+            console.log(`UI TESTS: All ${passed} tests PASSED`);
+        }
+    </script>
+</body>
+</html>

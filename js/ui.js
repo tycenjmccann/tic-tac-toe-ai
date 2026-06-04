@@ -200,6 +200,17 @@ class UIController {
      * Handle new game button click
      */
     handleNewGame() {
+        // Force-clear winning highlight immediately (cancel CSS animations/transitions)
+        this.elements.cells.forEach(cell => {
+            cell.classList.remove('winning');
+            cell.style.animation = 'none';
+        });
+        // Force reflow to ensure animation cancellation takes effect
+        void this.elements.cells[0].offsetHeight;
+        this.elements.cells.forEach(cell => {
+            cell.style.animation = '';
+        });
+
         this.game.reset();
         this.updateUI();
         
