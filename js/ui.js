@@ -33,6 +33,9 @@ class UIController {
             wins: document.getElementById('wins'),
             losses: document.getElementById('losses'),
             draws: document.getElementById('draws'),
+            roundNumber: document.getElementById('round-number'),
+            scorePlayerItem: document.getElementById('score-player-item'),
+            scoreAIItem: document.getElementById('score-ai-item'),
             modal: document.getElementById('difficulty-modal'),
             modalConfirm: document.getElementById('modal-confirm'),
             modalCancel: document.getElementById('modal-cancel')
@@ -374,9 +377,49 @@ class UIController {
      */
     updateStats() {
         const stats = this.game.stats;
+        const prevWins = parseInt(this.elements.wins.textContent) || 0;
+        const prevLosses = parseInt(this.elements.losses.textContent) || 0;
+        const prevDraws = parseInt(this.elements.draws.textContent) || 0;
+
         this.elements.wins.textContent = stats.wins;
         this.elements.losses.textContent = stats.losses;
         this.elements.draws.textContent = stats.draws;
+
+        // Update round number
+        const round = stats.wins + stats.losses + stats.draws + 1;
+        this.elements.roundNumber.textContent = round;
+
+        // Leading score highlight
+        this.elements.scorePlayerItem.classList.remove('leading');
+        this.elements.scoreAIItem.classList.remove('leading');
+
+        if (stats.wins > stats.losses) {
+            this.elements.scorePlayerItem.classList.add('leading');
+        } else if (stats.losses > stats.wins) {
+            this.elements.scoreAIItem.classList.add('leading');
+        }
+
+        // Score pulse animation
+        if (stats.wins > prevWins) {
+            this.pulseScore(this.elements.wins);
+        }
+        if (stats.losses > prevLosses) {
+            this.pulseScore(this.elements.losses);
+        }
+        if (stats.draws > prevDraws) {
+            this.pulseScore(this.elements.draws);
+        }
+    }
+
+    /**
+     * Pulse animation for score update
+     * @param {HTMLElement} el - Score value element
+     */
+    pulseScore(el) {
+        el.classList.add('updated');
+        el.addEventListener('animationend', () => {
+            el.classList.remove('updated');
+        }, { once: true });
     }
 }
 

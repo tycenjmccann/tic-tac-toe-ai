@@ -220,7 +220,8 @@ class Game {
             winningCombination: this.winningCombination,
             difficulty: this.difficulty,
             stats: { ...this.stats },
-            moveCount: this.moveHistory.length
+            moveCount: this.moveHistory.length,
+            round: this.stats.wins + this.stats.losses + this.stats.draws + 1
         };
     }
 
