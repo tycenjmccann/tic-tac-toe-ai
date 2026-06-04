@@ -4,33 +4,38 @@
  */
 
 import { UIController } from './ui.js';
+import { ThemeController } from './theme.js';
 
 /**
  * Initialize the application when DOM is ready
  */
 function init() {
-    console.log('🎮 Initializing Tic-Tac-Toe vs AI...');
+    console.log('\uD83C\uDFAE Initializing Tic-Tac-Toe vs AI...');
     
     try {
+        // Initialize theme controller
+        const theme = new ThemeController();
+        
         // Create UI controller (which creates the game)
         const ui = new UIController();
         
-        console.log('✅ Game initialized successfully!');
+        console.log('\u2705 Game initialized successfully!');
         console.log('Current difficulty:', ui.game.difficulty);
         console.log('Stats:', ui.game.stats);
         
-        // Make UI controller available globally for debugging
+        // Make controllers available globally for debugging
         if (typeof window !== 'undefined') {
             window.game = ui.game;
             window.ui = ui;
+            window.theme = theme;
         }
     } catch (error) {
-        console.error('❌ Error initializing game:', error);
+        console.error('\u274C Error initializing game:', error);
         
         // Show user-friendly error message
         const statusMessage = document.getElementById('status-message');
         if (statusMessage) {
-            statusMessage.textContent = '⚠️ Error loading game. Please refresh the page.';
+            statusMessage.textContent = '\u26A0\uFE0F Error loading game. Please refresh the page.';
             statusMessage.style.color = 'var(--danger-color)';
         }
     }
@@ -46,9 +51,9 @@ if (document.readyState === 'loading') {
 // Handle page visibility change (pause/resume)
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        console.log('📴 Page hidden');
+        console.log('\uD83D\uDCF4 Page hidden');
     } else {
-        console.log('👀 Page visible');
+        console.log('\uD83D\uDC40 Page visible');
     }
 });
 
