@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe Undo Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Undo Feature Tests (TEAM-1605)</h1>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <script type="module">
+        import { Game } from '../js/game.js';
+
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = { name, tests: [], beforeEach: null };
+                this.suites.push(suite);
+                const testContext = {
+                    test: (testName, testFn) => { suite.tests.push({ name: testName, fn: testFn }); },
+                    beforeEach: (fn) => { suite.beforeEach = fn; }
+                };
+                callback(testContext);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) { testState = suite.beforeEach(); }
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `❌ ${test.name}<pre class="error">${error.message}</pre>`;
+                            this.failed++;
+                        }
+                        suiteDiv.appendChild(testDiv);
+                    }
+                    resultsDiv.appendChild(suiteDiv);
+                }
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const percentage = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat"><strong>Total:</strong> ${total}</div>
+                    <div class="summary-stat success"><strong>Passed:</strong> ${this.passed}</div>
+                    <div class="summary-stat error"><strong>Failed:</strong> ${this.failed}</div>
+                    <div class="summary-stat"><strong>Success Rate:</strong> ${percentage}%</div>
+                `;
+            }
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) throw new Error(message || `Expected ${expected} but got ${actual}`);
+        }
+        function assertTrue(value, message) { if (value !== true) throw new Error(message || 'Expected true'); }
+        function assertFalse(value, message) { if (value !== false) throw new Error(message || 'Expected false'); }
+        function assertNull(value, message) { if (value !== null) throw new Error(message || `Expected null but got ${value}`); }
+
+        const runner = new TestRunner();
+
+        // ===========================
+        // Basic Undo Functionality
+        // ===========================
+        runner.suite('Undo - Basic Functionality', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                const game = new Game();
+                localStorage.removeItem('tic-tac-toe-stats');
+                game.stats = { wins: 0, losses: 0, draws: 0 };
+                return { game };
+            });
+
+            test('returns false when moveHistory is empty', ({ game }) => {
+                const result = game.undoLastMove();
+                assertFalse(result, 'undoLastMove should return false when no moves exist');
+            });
+
+            test('reverts a single human move when AI has not responded', ({ game }) => {
+                game.makeMove(4, 'X'); // Human moves to center
+                const result = game.undoLastMove();
+                assertTrue(result, 'undoLastMove should return true');
+                assertNull(game.board[4], 'Cell 4 should be null after undo');
+                assertEqual(game.moveHistory.length, 0, 'moveHistory should be empty');
+                assertEqual(game.currentPlayer, 'X', 'currentPlayer should be X');
+            });
+
+            test('reverts both human and AI moves', ({ game }) => {
+                game.makeMove(0, 'X'); // Human at 0
+                game.makeMove(4, 'O'); // AI at 4
+
+                const result = game.undoLastMove();
+                assertTrue(result, 'undoLastMove should return true');
+                assertNull(game.board[0], 'Cell 0 should be null after undo');
+                assertNull(game.board[4], 'Cell 4 should be null after undo');
+                assertEqual(game.moveHistory.length, 0, 'moveHistory should be empty');
+                assertEqual(game.currentPlayer, 'X', 'currentPlayer should be X');
+            });
+
+            test('resets game state flags after undo', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(4, 'O');
+                game.undoLastMove();
+
+                assertFalse(game.isGameOver, 'isGameOver should be false');
+                assertNull(game.winner, 'winner should be null');
+                assertEqual(game.winningCombination, null, 'winningCombination should be null');
+            });
+        });
+
+        // ===========================
+        // Undo from Game Over State
+        // ===========================
+        runner.suite('Undo - Game Over State', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                const game = new Game();
+                localStorage.removeItem('tic-tac-toe-stats');
+                game.stats = { wins: 0, losses: 0, draws: 0 };
+                return { game };
+            });
+
+            test('undo from X win decrements wins stat', ({ game }) => {
+                // Set up X winning scenario (top row)
+                game.makeMove(0, 'X');
+                game.makeMove(3, 'O');
+                game.makeMove(1, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(2, 'X'); // X wins with top row
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'X', 'X should be winner');
+                assertEqual(game.stats.wins, 1, 'Wins should be 1');
+
+                game.undoLastMove();
+                assertEqual(game.stats.wins, 0, 'Wins should be 0 after undo');
+                assertFalse(game.isGameOver, 'Game should not be over after undo');
+            });
+
+            test('undo from O win decrements losses stat', ({ game }) => {
+                // Set up O winning scenario (middle row: 3, 4, 5)
+                game.makeMove(0, 'X');
+                game.makeMove(3, 'O');
+                game.makeMove(1, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(8, 'X');
+                game.makeMove(5, 'O'); // O wins with middle row
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'O', 'O should be winner');
+                assertEqual(game.stats.losses, 1, 'Losses should be 1');
+
+                game.undoLastMove();
+                assertEqual(game.stats.losses, 0, 'Losses should be 0 after undo');
+                assertFalse(game.isGameOver, 'Game should not be over after undo');
+            });
+
+            test('undo from draw decrements draws stat', ({ game }) => {
+                // Set up draw scenario
+                // X O X
+                // X X O
+                // O X O
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(2, 'X');
+                game.makeMove(5, 'O');
+                game.makeMove(3, 'X');
+                game.makeMove(6, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(8, 'O');
+                game.makeMove(7, 'X'); // Draw
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'draw', 'Should be a draw');
+                assertEqual(game.stats.draws, 1, 'Draws should be 1');
+
+                game.undoLastMove();
+                assertEqual(game.stats.draws, 0, 'Draws should be 0 after undo');
+                assertFalse(game.isGameOver, 'Game should not be over after undo');
+            });
+        });
+
+        // ===========================
+        // Multiple Consecutive Undos
+        // ===========================
+        runner.suite('Undo - Multiple Consecutive Undos', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                const game = new Game();
+                localStorage.removeItem('tic-tac-toe-stats');
+                game.stats = { wins: 0, losses: 0, draws: 0 };
+                return { game };
+            });
+
+            test('multiple undos work correctly', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(1, 'X');
+                game.makeMove(5, 'O');
+
+                // First undo: removes move pair (1,X) and (5,O)
+                game.undoLastMove();
+                assertEqual(game.moveHistory.length, 2, 'Should have 2 moves after first undo');
+                assertNull(game.board[1], 'Cell 1 should be null');
+                assertNull(game.board[5], 'Cell 5 should be null');
+
+                // Second undo: removes move pair (0,X) and (4,O)
+                game.undoLastMove();
+                assertEqual(game.moveHistory.length, 0, 'Should have 0 moves after second undo');
+                assertNull(game.board[0], 'Cell 0 should be null');
+                assertNull(game.board[4], 'Cell 4 should be null');
+
+                // Third undo: should return false
+                const result = game.undoLastMove();
+                assertFalse(result, 'Third undo should return false');
+            });
+
+            test('can make moves after undo', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(4, 'O');
+                game.undoLastMove();
+
+                // Should be able to make a new move
+                const success = game.makeMove(8, 'X');
+                assertTrue(success, 'Should be able to make move after undo');
+                assertEqual(game.board[8], 'X', 'Cell 8 should be X');
+                assertEqual(game.moveHistory.length, 1, 'Should have 1 move');
+            });
+
+            test('undo preserves earlier moves', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(2, 'X');
+                game.makeMove(6, 'O');
+
+                // Undo last pair
+                game.undoLastMove();
+
+                // Earlier moves should remain
+                assertEqual(game.board[0], 'X', 'Cell 0 should still be X');
+                assertEqual(game.board[4], 'O', 'Cell 4 should still be O');
+                assertEqual(game.moveHistory.length, 2, 'Should have 2 moves remaining');
+            });
+        });
+
+        console.log('🚀 Starting undo tests...');
+        await runner.run();
+        console.log('✅ Undo tests complete!');
+    </script>
+</body>
+</html>

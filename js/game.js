@@ -208,6 +208,53 @@ class Game {
     }
 
     /**
+     * Undo the last move(s)
+     * If human moved + AI responded: revert BOTH moves
+     * If human moved but AI hasn't responded: revert 1 move
+     * @returns {boolean} True if undo was successful
+     */
+    undoLastMove() {
+        if (this.moveHistory.length === 0) {
+            return false;
+        }
+
+        // If undoing from a game-over state, decrement the relevant stat
+        if (this.isGameOver) {
+            if (this.winner === 'X') {
+                this.stats.wins = Math.max(0, this.stats.wins - 1);
+            } else if (this.winner === 'O') {
+                this.stats.losses = Math.max(0, this.stats.losses - 1);
+            } else if (this.winner === 'draw') {
+                this.stats.draws = Math.max(0, this.stats.draws - 1);
+            }
+            this.saveStats();
+        }
+
+        // Determine how many moves to undo
+        const lastMove = this.moveHistory[this.moveHistory.length - 1];
+
+        if (lastMove.player === 'O' && this.moveHistory.length >= 2) {
+            // AI moved last — undo both AI and human move
+            const aiMove = this.moveHistory.pop();
+            const humanMove = this.moveHistory.pop();
+            this.board[aiMove.index] = null;
+            this.board[humanMove.index] = null;
+        } else {
+            // Human moved last (AI hasn't responded yet) — undo 1 move
+            const move = this.moveHistory.pop();
+            this.board[move.index] = null;
+        }
+
+        // Reset game state
+        this.currentPlayer = 'X';
+        this.isGameOver = false;
+        this.winner = null;
+        this.winningCombination = null;
+
+        return true;
+    }
+
+    /**
      * Get current game state
      * @returns {Object} Current game state
      */
