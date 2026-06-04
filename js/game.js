@@ -20,6 +20,7 @@ class Game {
         this.ai = AIStrategyFactory.create(this.difficulty, this.aiPlayer);
         this.stats = this.loadStats();
         this.moveHistory = [];
+        this.generation = 0; // Incremented on each reset to cancel stale async operations
     }
 
     /**
@@ -101,6 +102,11 @@ class Game {
     makeMove(index, player) {
         // Validate move
         if (this.isGameOver || this.board[index] !== null || index < 0 || index > 8) {
+            return false;
+        }
+
+        // Validate it's this player's turn
+        if (player !== this.currentPlayer) {
             return false;
         }
 
@@ -205,6 +211,7 @@ class Game {
         this.winner = null;
         this.winningCombination = null;
         this.moveHistory = [];
+        this.generation++;
     }
 
     /**

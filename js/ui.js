@@ -175,8 +175,16 @@ class UIController {
         this.isAIThinking = true;
         this.updateStatusMessage('AI is thinking...');
 
+        // Capture generation before delay to detect reset during thinking
+        const generationAtStart = this.game.generation;
+
         // Small delay to show "thinking" state
         await this.delay(300);
+
+        // If game was reset during delay, abort this stale AI move
+        if (this.game.generation !== generationAtStart) {
+            return;
+        }
 
         const aiMove = this.game.getAIMove();
         if (aiMove !== null) {
@@ -200,6 +208,7 @@ class UIController {
      * Handle new game button click
      */
     handleNewGame() {
+        this.isAIThinking = false;
         this.game.reset();
         this.updateUI();
         
@@ -239,6 +248,7 @@ class UIController {
      * @param {string} difficulty - New difficulty level
      */
     applyDifficultyChange(difficulty) {
+        this.isAIThinking = false;
         this.game.changeDifficulty(difficulty);
         this.game.reset();
         this.updateUI();

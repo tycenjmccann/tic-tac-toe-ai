@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe Race Condition Regression Tests (TEAM-1621)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Race Condition Regression Tests (TEAM-1621)</h1>
+    <p>Verifies that the AI does not skip its turn after a game reset due to stale async operations.</p>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <script type="module">
+        import { Game } from '../js/game.js';
+
+        /**
+         * Simple test framework (same pattern as game.test.html)
+         */
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = {
+                    name,
+                    tests: [],
+                    beforeEach: null
+                };
+                this.suites.push(suite);
+
+                const testContext = {
+                    test: (testName, testFn) => {
+                        suite.tests.push({ name: testName, fn: testFn });
+                    },
+                    beforeEach: (fn) => {
+                        suite.beforeEach = fn;
+                    }
+                };
+
+                callback(testContext);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) {
+                            testState = suite.beforeEach();
+                        }
+
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `
+                                ❌ ${test.name}
+                                <pre class="error">${error.message}</pre>
+                            `;
+                            this.failed++;
+                        }
+
+                        suiteDiv.appendChild(testDiv);
+                    }
+
+                    resultsDiv.appendChild(suiteDiv);
+                }
+
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const percentage = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat">
+                        <strong>Total:</strong> ${total}
+                    </div>
+                    <div class="summary-stat success">
+                        <strong>Passed:</strong> ${this.passed}
+                    </div>
+                    <div class="summary-stat error">
+                        <strong>Failed:</strong> ${this.failed}
+                    </div>
+                    <div class="summary-stat">
+                        <strong>Success Rate:</strong> ${percentage}%
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Assertion helpers
+         */
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(
+                    message || `Expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}`
+                );
+            }
+        }
+
+        function assertTrue(value, message = 'Value should be true') {
+            if (value !== true) {
+                throw new Error(message);
+            }
+        }
+
+        function assertFalse(value, message = 'Value should be false') {
+            if (value !== false) {
+                throw new Error(message);
+            }
+        }
+
+        function assertNull(value, message = 'Value should be null') {
+            if (value !== null) {
+                throw new Error(message);
+            }
+        }
+
+        /**
+         * Helper: Create a minimal UIController-like object for testing
+         * without DOM dependencies.
+         */
+        function createMockUI() {
+            const game = new Game();
+            return {
+                game,
+                isAIThinking: false,
+                statusMessage: '',
+
+                updateStatusMessage(msg) {
+                    if (msg) this.statusMessage = msg;
+                },
+
+                updateUI() {
+                    // no-op for testing
+                },
+
+                updateDifficultyUI() {
+                    // no-op for testing
+                },
+
+                delay(ms) {
+                    return new Promise(resolve => setTimeout(resolve, ms));
+                },
+
+                async makeAIMove() {
+                    this.isAIThinking = true;
+                    this.updateStatusMessage('AI is thinking...');
+
+                    // Capture generation before delay to detect reset during thinking
+                    const generationAtStart = this.game.generation;
+
+                    // Small delay to show "thinking" state
+                    await this.delay(300);
+
+                    // If game was reset during delay, abort this stale AI move
+                    if (this.game.generation !== generationAtStart) {
+                        return;
+                    }
+
+                    const aiMove = this.game.getAIMove();
+                    if (aiMove !== null) {
+                        this.game.makeMove(aiMove, 'O');
+                        this.updateUI();
+                    }
+
+                    this.isAIThinking = false;
+                },
+
+                handleNewGame() {
+                    this.isAIThinking = false;
+                    this.game.reset();
+                    this.updateUI();
+
+                    if (this.game.isAITurn()) {
+                        this.makeAIMove();
+                    }
+                },
+
+                applyDifficultyChange(difficulty) {
+                    this.isAIThinking = false;
+                    this.game.changeDifficulty(difficulty);
+                    this.game.reset();
+                    this.updateUI();
+                    this.updateDifficultyUI();
+                }
+            };
+        }
+
+        /**
+         * Test Suites
+         */
+        const runner = new TestRunner();
+
+        // === Suite 1: Game Generation Counter ===
+        runner.suite('Game Generation Counter', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('generation starts at 0', ({ game }) => {
+                assertEqual(game.generation, 0,
+                    'New game should have generation = 0');
+            });
+
+            test('generation increments on reset()', ({ game }) => {
+                game.reset();
+                assertEqual(game.generation, 1,
+                    'After first reset, generation should be 1');
+                game.reset();
+                assertEqual(game.generation, 2,
+                    'After second reset, generation should be 2');
+            });
+
+            test('generation increments even if game is in progress', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                const genBefore = game.generation;
+                game.reset();
+                assertEqual(game.generation, genBefore + 1,
+                    'Generation should increment on reset during mid-game');
+            });
+
+            test('reset clears board but increments generation', ({ game }) => {
+                game.makeMove(4, 'X');
+                game.reset();
+                assertEqual(game.board[4], null,
+                    'Board should be cleared after reset');
+                assertEqual(game.generation, 1,
+                    'Generation should be 1 after first reset');
+                assertEqual(game.currentPlayer, 'X',
+                    'Current player should be X after reset');
+            });
+        });
+
+        // === Suite 2: Turn Validation in makeMove ===
+        runner.suite('Turn Validation in makeMove', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('rejects O move when it is X turn', ({ game }) => {
+                // It's X's turn at the start
+                const result = game.makeMove(0, 'O');
+                assertFalse(result,
+                    'Should reject O move when currentPlayer is X');
+                assertNull(game.board[0],
+                    'Board cell should remain null after rejected move');
+            });
+
+            test('rejects X move when it is O turn', ({ game }) => {
+                game.makeMove(0, 'X'); // X moves, now it's O's turn
+                const result = game.makeMove(1, 'X');
+                assertFalse(result,
+                    'Should reject X move when currentPlayer is O');
+                assertNull(game.board[1],
+                    'Board cell should remain null after rejected move');
+            });
+
+            test('accepts correct player move', ({ game }) => {
+                const result = game.makeMove(4, 'X');
+                assertTrue(result,
+                    'Should accept X move when currentPlayer is X');
+                assertEqual(game.board[4], 'X',
+                    'Board should show X at cell 4');
+            });
+
+            test('after X moves, O can move', ({ game }) => {
+                game.makeMove(0, 'X');
+                const result = game.makeMove(4, 'O');
+                assertTrue(result,
+                    'Should accept O move after X has moved');
+                assertEqual(game.board[4], 'O',
+                    'Board should show O at cell 4');
+            });
+
+            test('stale AI move after reset is rejected', ({ game }) => {
+                // Simulate: X moves, then AI should move (it's O's turn)
+                game.makeMove(0, 'X');
+                assertEqual(game.currentPlayer, 'O',
+                    'After X moves, currentPlayer should be O');
+
+                // Now simulate a reset (as if handleNewGame was called)
+                game.reset();
+
+                // Stale AI tries to place O — but currentPlayer is now X
+                const result = game.makeMove(4, 'O');
+                assertFalse(result,
+                    'Stale AI move (O) should be rejected after reset since currentPlayer is X');
+                assertNull(game.board[4],
+                    'Board should remain clean after rejected stale AI move');
+            });
+        });
+
+        // === Suite 3: Race Condition Prevention (Async Flow) ===
+        runner.suite('Race Condition Prevention — makeAIMove with generation guard', ({ test }) => {
+
+            test('stale makeAIMove aborts after handleNewGame during delay', async () => {
+                const ui = createMockUI();
+
+                // Setup: X makes a move so it becomes O's turn
+                ui.game.makeMove(0, 'X');
+                assertEqual(ui.game.currentPlayer, 'O',
+                    'Should be O turn after X moves');
+
+                // Trigger AI move (starts the 300ms delay)
+                const aiMovePromise = ui.makeAIMove();
+
+                // Immediately simulate "New Game" during the delay
+                ui.handleNewGame();
+
+                // Wait for the stale makeAIMove to complete
+                await aiMovePromise;
+
+                // Verify: Board should be empty (no stale AI move placed)
+                const boardEmpty = ui.game.board.every(cell => cell === null);
+                assertTrue(boardEmpty,
+                    'Board should be completely empty — stale AI move must not place on new board');
+            });
+
+            test('isAIThinking is false after handleNewGame', async () => {
+                const ui = createMockUI();
+
+                // Setup: trigger AI move
+                ui.game.makeMove(0, 'X');
+                const aiMovePromise = ui.makeAIMove();
+
+                // Immediately call handleNewGame
+                ui.handleNewGame();
+
+                // At this point, isAIThinking should already be false
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false immediately after handleNewGame');
+
+                // Wait for stale promise to resolve
+                await aiMovePromise;
+
+                // Still false
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should remain false after stale AI move resolves');
+            });
+
+            test('normal AI move still works when no reset occurs', async () => {
+                const ui = createMockUI();
+
+                // X moves
+                ui.game.makeMove(0, 'X');
+                assertEqual(ui.game.currentPlayer, 'O',
+                    'Should be O turn');
+
+                // AI moves normally (no reset during delay)
+                await ui.makeAIMove();
+
+                // Verify AI placed a move
+                const oCount = ui.game.board.filter(c => c === 'O').length;
+                assertEqual(oCount, 1,
+                    'AI should have placed exactly one O on the board');
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false after AI move completes');
+            });
+
+            test('stale makeAIMove aborts after applyDifficultyChange during delay', async () => {
+                const ui = createMockUI();
+
+                // Setup: X makes a move
+                ui.game.makeMove(0, 'X');
+
+                // Trigger AI move
+                const aiMovePromise = ui.makeAIMove();
+
+                // Simulate difficulty change during delay
+                ui.applyDifficultyChange('hard');
+
+                // Wait for stale AI move
+                await aiMovePromise;
+
+                // Board should be empty (difficulty change calls reset)
+                const boardEmpty = ui.game.board.every(cell => cell === null);
+                assertTrue(boardEmpty,
+                    'Board should be empty after applyDifficultyChange — stale AI must not place');
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false after applyDifficultyChange');
+            });
+        });
+
+        // === Suite 4: Turn Order After Reset ===
+        runner.suite('Turn Order After Reset', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('human (X) goes first after reset', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                game.reset();
+                assertEqual(game.currentPlayer, 'X',
+                    'After reset, human (X) should go first');
+                assertTrue(game.isHumanTurn(),
+                    'isHumanTurn() should return true after reset');
+                assertFalse(game.isAITurn(),
+                    'isAITurn() should return false after reset');
+            });
+
+            test('AI responds correctly after human moves post-reset', ({ game }) => {
+                game.reset();
+                game.makeMove(4, 'X');
+                assertEqual(game.currentPlayer, 'O',
+                    'After human moves, it should be AI turn');
+                assertTrue(game.isAITurn(),
+                    'isAITurn() should be true after human move');
+
+                // AI can make a valid move
+                const aiMove = game.getAIMove();
+                assertTrue(aiMove !== null && aiMove >= 0 && aiMove <= 8,
+                    'AI should return a valid move index');
+                const result = game.makeMove(aiMove, 'O');
+                assertTrue(result,
+                    'AI move should succeed');
+                assertEqual(game.currentPlayer, 'X',
+                    'After AI moves, it should be human turn again');
+            });
+
+            test('multiple resets maintain correct turn order', ({ game }) => {
+                for (let i = 0; i < 5; i++) {
+                    game.reset();
+                    assertEqual(game.currentPlayer, 'X',
+                        `After reset #${i + 1}, currentPlayer should be X`);
+                }
+            });
+        });
+
+        // === Suite 5: Edge Case — Double New Game ===
+        runner.suite('Edge Cases', ({ test }) => {
+
+            test('rapid double handleNewGame does not corrupt state', async () => {
+                const ui = createMockUI();
+
+                ui.game.makeMove(0, 'X');
+                const aiMovePromise = ui.makeAIMove();
+
+                // Double "New Game" clicks
+                ui.handleNewGame();
+                ui.handleNewGame();
+
+                await aiMovePromise;
+
+                const boardEmpty = ui.game.board.every(cell => cell === null);
+                assertTrue(boardEmpty,
+                    'Board should be empty after double handleNewGame');
+                assertEqual(ui.game.currentPlayer, 'X',
+                    'Current player should be X after double reset');
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false');
+            });
+
+            test('handleNewGame during AI thinking unblocks human clicks', async () => {
+                const ui = createMockUI();
+
+                ui.game.makeMove(0, 'X');
+                const aiMovePromise = ui.makeAIMove();
+
+                // During AI thinking, isAIThinking is true
+                assertTrue(ui.isAIThinking,
+                    'isAIThinking should be true during AI delay');
+
+                // User clicks New Game
+                ui.handleNewGame();
+
+                // Now isAIThinking should be false — human can click
+                assertFalse(ui.isAIThinking,
+                    'isAIThinking should be false after handleNewGame, unblocking human');
+
+                // Human can make a move
+                const result = ui.game.makeMove(4, 'X');
+                assertTrue(result,
+                    'Human should be able to move after handleNewGame resets isAIThinking');
+
+                await aiMovePromise;
+            });
+
+            test('generation counter handles many resets correctly', () => {
+                const game = new Game();
+                for (let i = 0; i < 100; i++) {
+                    game.reset();
+                }
+                assertEqual(game.generation, 100,
+                    'Generation should be 100 after 100 resets');
+            });
+        });
+
+        // Run all tests
+        console.log('🚀 Starting race condition regression tests (TEAM-1621)...');
+        await runner.run();
+        console.log('✅ All tests complete!');
+    </script>
+</body>
+</html>
