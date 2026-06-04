@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe Streak Tracking Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Win-Streak Tracking Tests (TEAM-1613)</h1>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <script type="module">
+        import { Game } from '../js/game.js';
+
+        /**
+         * Simple test framework (same pattern as game.test.html)
+         */
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = {
+                    name,
+                    tests: [],
+                    beforeEach: null
+                };
+                this.suites.push(suite);
+
+                const testContext = {
+                    test: (testName, testFn) => {
+                        suite.tests.push({ name: testName, fn: testFn });
+                    },
+                    beforeEach: (fn) => {
+                        suite.beforeEach = fn;
+                    }
+                };
+
+                callback(testContext);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) {
+                            testState = suite.beforeEach();
+                        }
+
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `
+                                ❌ ${test.name}
+                                <pre class="error">${error.message}</pre>
+                            `;
+                            this.failed++;
+                        }
+
+                        suiteDiv.appendChild(testDiv);
+                    }
+
+                    resultsDiv.appendChild(suiteDiv);
+                }
+
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const percentage = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat">
+                        <strong>Total:</strong> ${total}
+                    </div>
+                    <div class="summary-stat success">
+                        <strong>Passed:</strong> ${this.passed}
+                    </div>
+                    <div class="summary-stat error">
+                        <strong>Failed:</strong> ${this.failed}
+                    </div>
+                    <div class="summary-stat">
+                        <strong>Success Rate:</strong> ${percentage}%
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Assertion helpers
+         */
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(
+                    message || `Expected ${expected} but got ${actual}`
+                );
+            }
+        }
+
+        function assertTrue(value, message = 'Value should be true') {
+            if (value !== true) {
+                throw new Error(message);
+            }
+        }
+
+        /**
+         * Helper: Clear localStorage before tests
+         */
+        function clearStorage() {
+            localStorage.removeItem('tic-tac-toe-stats');
+            localStorage.removeItem('tic-tac-toe-difficulty');
+        }
+
+        /**
+         * Helper: Simulate a complete game where X wins
+         * @param {Game} game - Game instance
+         */
+        function simulateXWin(game) {
+            game.reset();
+            // X wins with top row: cells 0, 1, 2
+            game.makeMove(0, 'X'); // X takes top-left
+            game.makeMove(3, 'O'); // O takes middle-left
+            game.makeMove(1, 'X'); // X takes top-center
+            game.makeMove(4, 'O'); // O takes center
+            game.makeMove(2, 'X'); // X takes top-right — wins!
+        }
+
+        /**
+         * Helper: Simulate a complete game where O wins
+         * @param {Game} game - Game instance
+         */
+        function simulateOWin(game) {
+            game.reset();
+            // O wins with middle row: cells 3, 4, 5
+            game.makeMove(0, 'X'); // X takes top-left
+            game.makeMove(3, 'O'); // O takes middle-left
+            game.makeMove(1, 'X'); // X takes top-center
+            game.makeMove(4, 'O'); // O takes center
+            game.makeMove(8, 'X'); // X takes bottom-right
+            game.makeMove(5, 'O'); // O takes middle-right — wins!
+        }
+
+        /**
+         * Helper: Simulate a draw
+         * @param {Game} game - Game instance
+         */
+        function simulateDraw(game) {
+            game.reset();
+            // Fill board for a draw
+            game.makeMove(0, 'X'); // X
+            game.makeMove(1, 'O'); // O
+            game.makeMove(2, 'X'); // X
+            game.makeMove(4, 'O'); // O
+            game.makeMove(3, 'X'); // X
+            game.makeMove(5, 'O'); // O
+            game.makeMove(7, 'X'); // X
+            game.makeMove(6, 'O'); // O
+            game.makeMove(8, 'X'); // X — draw!
+        }
+
+        const runner = new TestRunner();
+
+        // Stats Object Structure Tests
+        runner.suite('Stats Object Structure', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                clearStorage();
+                return { game: new Game() };
+            });
+
+            test('Stats object includes currentStreak field defaulting to 0', ({ game }) => {
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should default to 0');
+            });
+
+            test('Stats object includes bestStreak field defaulting to 0', ({ game }) => {
+                assertEqual(game.stats.bestStreak, 0,
+                    'bestStreak should default to 0');
+            });
+
+            test('Stats object includes wins, losses, draws fields', ({ game }) => {
+                assertEqual(game.stats.wins, 0, 'wins should be 0');
+                assertEqual(game.stats.losses, 0, 'losses should be 0');
+                assertEqual(game.stats.draws, 0, 'draws should be 0');
+            });
+        });
+
+        // Streak Increment Tests
+        runner.suite('Streak Incrementing on Win', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                clearStorage();
+                return { game: new Game() };
+            });
+
+            test('Winning increments currentStreak by 1', ({ game }) => {
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 1,
+                    'currentStreak should be 1 after first win');
+            });
+
+            test('Multiple wins increment currentStreak consecutively', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 3,
+                    'currentStreak should be 3 after three consecutive wins');
+            });
+
+            test('bestStreak updates when currentStreak exceeds it', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                assertEqual(game.stats.bestStreak, 2,
+                    'bestStreak should be 2 after two consecutive wins');
+                simulateXWin(game);
+                assertEqual(game.stats.bestStreak, 3,
+                    'bestStreak should be 3 after three consecutive wins');
+            });
+        });
+
+        // Streak Reset Tests
+        runner.suite('Streak Reset on Loss/Draw', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                clearStorage();
+                return { game: new Game() };
+            });
+
+            test('Loss resets currentStreak to 0', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 2, 'Pre-condition: streak is 2');
+                simulateOWin(game);
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should be 0 after a loss');
+            });
+
+            test('Draw resets currentStreak to 0', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 2, 'Pre-condition: streak is 2');
+                simulateDraw(game);
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should be 0 after a draw');
+            });
+
+            test('bestStreak is preserved after loss', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                simulateXWin(game);
+                assertEqual(game.stats.bestStreak, 3, 'Pre-condition: bestStreak is 3');
+                simulateOWin(game);
+                assertEqual(game.stats.bestStreak, 3,
+                    'bestStreak should remain 3 after a loss');
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should be 0 after a loss');
+            });
+
+            test('bestStreak is preserved after draw', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                simulateDraw(game);
+                assertEqual(game.stats.bestStreak, 2,
+                    'bestStreak should remain 2 after a draw');
+            });
+        });
+
+        // Reset Stats Tests
+        runner.suite('resetStats() Behavior', ({ test, beforeEach }) => {
+            beforeEach(() => {
+                clearStorage();
+                return { game: new Game() };
+            });
+
+            test('resetStats() zeros currentStreak', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                game.resetStats();
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should be 0 after resetStats()');
+            });
+
+            test('resetStats() zeros bestStreak', ({ game }) => {
+                simulateXWin(game);
+                simulateXWin(game);
+                simulateXWin(game);
+                game.resetStats();
+                assertEqual(game.stats.bestStreak, 0,
+                    'bestStreak should be 0 after resetStats()');
+            });
+
+            test('resetStats() zeros wins, losses, draws', ({ game }) => {
+                simulateXWin(game);
+                simulateOWin(game);
+                simulateDraw(game);
+                game.resetStats();
+                assertEqual(game.stats.wins, 0, 'wins should be 0');
+                assertEqual(game.stats.losses, 0, 'losses should be 0');
+                assertEqual(game.stats.draws, 0, 'draws should be 0');
+            });
+        });
+
+        // Backward Compatibility Tests
+        runner.suite('Backward Compatibility', ({ test }) => {
+            test('Old stats format (no streak fields) loads with streak defaulting to 0', () => {
+                // Simulate old format saved in localStorage
+                const oldStats = { wins: 5, losses: 3, draws: 2 };
+                localStorage.setItem('tic-tac-toe-stats', JSON.stringify(oldStats));
+
+                const game = new Game();
+                assertEqual(game.stats.wins, 5, 'wins should load as 5');
+                assertEqual(game.stats.losses, 3, 'losses should load as 3');
+                assertEqual(game.stats.draws, 2, 'draws should load as 2');
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should default to 0 for old format');
+                assertEqual(game.stats.bestStreak, 0,
+                    'bestStreak should default to 0 for old format');
+
+                clearStorage();
+            });
+
+            test('Corrupted localStorage returns default stats', () => {
+                localStorage.setItem('tic-tac-toe-stats', 'not-valid-json{{{');
+
+                const game = new Game();
+                assertEqual(game.stats.wins, 0, 'wins should be 0');
+                assertEqual(game.stats.losses, 0, 'losses should be 0');
+                assertEqual(game.stats.draws, 0, 'draws should be 0');
+                assertEqual(game.stats.currentStreak, 0, 'currentStreak should be 0');
+                assertEqual(game.stats.bestStreak, 0, 'bestStreak should be 0');
+
+                clearStorage();
+            });
+        });
+
+        // Persistence Tests
+        runner.suite('LocalStorage Persistence', ({ test }) => {
+            test('Streak data persists across game instances', () => {
+                clearStorage();
+
+                // First instance: build a streak
+                const game1 = new Game();
+                simulateXWin(game1);
+                simulateXWin(game1);
+                simulateXWin(game1);
+                assertEqual(game1.stats.currentStreak, 3, 'First instance streak = 3');
+                assertEqual(game1.stats.bestStreak, 3, 'First instance bestStreak = 3');
+
+                // Second instance: should load persisted streak
+                const game2 = new Game();
+                assertEqual(game2.stats.currentStreak, 3,
+                    'Second instance should load currentStreak = 3 from localStorage');
+                assertEqual(game2.stats.bestStreak, 3,
+                    'Second instance should load bestStreak = 3 from localStorage');
+
+                clearStorage();
+            });
+
+            test('Streak is saved to localStorage on every stats update', () => {
+                clearStorage();
+
+                const game = new Game();
+                simulateXWin(game);
+
+                const stored = JSON.parse(localStorage.getItem('tic-tac-toe-stats'));
+                assertEqual(stored.currentStreak, 1,
+                    'localStorage should contain currentStreak = 1');
+                assertEqual(stored.bestStreak, 1,
+                    'localStorage should contain bestStreak = 1');
+
+                clearStorage();
+            });
+        });
+
+        // Difficulty Change Tests
+        runner.suite('Difficulty Change Does Not Affect Streak', ({ test }) => {
+            test('Changing difficulty does not reset streak', () => {
+                clearStorage();
+
+                const game = new Game();
+                simulateXWin(game);
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 2, 'Pre-condition: streak is 2');
+
+                game.changeDifficulty('hard');
+                assertEqual(game.stats.currentStreak, 2,
+                    'currentStreak should remain 2 after difficulty change');
+                assertEqual(game.stats.bestStreak, 2,
+                    'bestStreak should remain 2 after difficulty change');
+
+                clearStorage();
+            });
+        });
+
+        // New Game Without Finishing Tests
+        runner.suite('New Game Without Finishing', ({ test }) => {
+            test('Resetting an unfinished game does not change streak', () => {
+                clearStorage();
+
+                const game = new Game();
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 1, 'Pre-condition: streak is 1');
+
+                // Start a new game and make a move but don't finish
+                game.reset();
+                game.makeMove(0, 'X');
+                // Reset again without finishing
+                game.reset();
+
+                assertEqual(game.stats.currentStreak, 1,
+                    'currentStreak should remain 1 after unfinished game reset');
+
+                clearStorage();
+            });
+        });
+
+        // Edge Cases
+        runner.suite('Edge Cases', ({ test }) => {
+            test('bestStreak does not decrease after new lower streak', () => {
+                clearStorage();
+
+                const game = new Game();
+                // Build a streak of 5
+                for (let i = 0; i < 5; i++) {
+                    simulateXWin(game);
+                }
+                assertEqual(game.stats.bestStreak, 5, 'bestStreak should be 5');
+
+                // Lose, then build a streak of 2
+                simulateOWin(game);
+                simulateXWin(game);
+                simulateXWin(game);
+
+                assertEqual(game.stats.currentStreak, 2, 'currentStreak should be 2');
+                assertEqual(game.stats.bestStreak, 5,
+                    'bestStreak should remain 5, not decrease to 2');
+
+                clearStorage();
+            });
+
+            test('Streak of 1 then loss results in streak 0', () => {
+                clearStorage();
+
+                const game = new Game();
+                simulateXWin(game);
+                assertEqual(game.stats.currentStreak, 1, 'currentStreak should be 1');
+                simulateOWin(game);
+                assertEqual(game.stats.currentStreak, 0,
+                    'currentStreak should be 0 after loss');
+
+                clearStorage();
+            });
+        });
+
+        // Run all tests
+        console.log('🚀 Starting win-streak tracking tests...');
+        await runner.run();
+        console.log('✅ All tests complete!');
+    </script>
+</body>
+</html>

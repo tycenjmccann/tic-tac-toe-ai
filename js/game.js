@@ -53,18 +53,26 @@ class Game {
 
     /**
      * Load game stats from localStorage
-     * @returns {Object} Stats object with wins, losses, draws
+     * Backward compatible: missing streak fields default to 0
+     * @returns {Object} Stats object with wins, losses, draws, currentStreak, bestStreak
      */
     loadStats() {
         const stored = localStorage.getItem('tic-tac-toe-stats');
         if (stored) {
             try {
-                return JSON.parse(stored);
+                const parsed = JSON.parse(stored);
+                return {
+                    wins: parsed.wins || 0,
+                    losses: parsed.losses || 0,
+                    draws: parsed.draws || 0,
+                    currentStreak: parsed.currentStreak || 0,
+                    bestStreak: parsed.bestStreak || 0
+                };
             } catch (e) {
                 console.error('Error loading stats:', e);
             }
         }
-        return { wins: 0, losses: 0, draws: 0 };
+        return { wins: 0, losses: 0, draws: 0, currentStreak: 0, bestStreak: 0 };
     }
 
     /**
@@ -75,10 +83,10 @@ class Game {
     }
 
     /**
-     * Reset all stats
+     * Reset all stats including streak data
      */
     resetStats() {
-        this.stats = { wins: 0, losses: 0, draws: 0 };
+        this.stats = { wins: 0, losses: 0, draws: 0, currentStreak: 0, bestStreak: 0 };
         this.saveStats();
     }
 
@@ -181,16 +189,22 @@ class Game {
     }
 
     /**
-     * Update game statistics
+     * Update game statistics including streak tracking
      * @param {string} result - Result of the game ('X', 'O', or 'draw')
      */
     updateStats(result) {
         if (result === 'X') {
             this.stats.wins++;
+            this.stats.currentStreak++;
+            if (this.stats.currentStreak > this.stats.bestStreak) {
+                this.stats.bestStreak = this.stats.currentStreak;
+            }
         } else if (result === 'O') {
             this.stats.losses++;
+            this.stats.currentStreak = 0;
         } else if (result === 'draw') {
             this.stats.draws++;
+            this.stats.currentStreak = 0;
         }
         this.saveStats();
     }
