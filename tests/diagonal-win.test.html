@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagonal Win Attribution Tests (TEAM-1600)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .test-suite {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .test-case.pass {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .test-case.fail {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        .summary {
+            background: #333;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-stat {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .error { color: #f44336; }
+        .success { color: #4caf50; }
+        /* Hide game UI elements used for testing */
+        .game-container { display: none; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Diagonal Win Attribution Tests (TEAM-1600)</h1>
+    <p>Verifies that diagonal wins are always attributed to the correct player in the result banner.</p>
+    <div id="summary" class="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">Running tests...</div>
+    </div>
+    <div id="test-results"></div>
+
+    <!-- Minimal DOM structure required by UIController -->
+    <div class="game-container">
+        <div id="status-message">Your turn (X)</div>
+        <div class="board">
+            <button class="cell" data-index="0"></button>
+            <button class="cell" data-index="1"></button>
+            <button class="cell" data-index="2"></button>
+            <button class="cell" data-index="3"></button>
+            <button class="cell" data-index="4"></button>
+            <button class="cell" data-index="5"></button>
+            <button class="cell" data-index="6"></button>
+            <button class="cell" data-index="7"></button>
+            <button class="cell" data-index="8"></button>
+        </div>
+        <button id="new-game-btn">New Game</button>
+        <button id="reset-stats-btn">Reset Stats</button>
+        <div>
+            <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+            <button class="difficulty-btn" data-difficulty="medium">Medium</button>
+            <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+        </div>
+        <span id="current-difficulty">Medium</span>
+        <span id="wins">0</span>
+        <span id="losses">0</span>
+        <span id="draws">0</span>
+        <div id="difficulty-modal" hidden aria-hidden="true">
+            <button id="modal-confirm">Confirm</button>
+            <button id="modal-cancel">Cancel</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Game } from '../js/game.js';
+        import { UIController } from '../js/ui.js';
+
+        /**
+         * Simple test framework
+         */
+        class TestRunner {
+            constructor() {
+                this.passed = 0;
+                this.failed = 0;
+                this.suites = [];
+            }
+
+            suite(name, callback) {
+                const suite = { name, tests: [], beforeEach: null };
+                this.suites.push(suite);
+                const ctx = {
+                    test: (testName, testFn) => suite.tests.push({ name: testName, fn: testFn }),
+                    beforeEach: (fn) => { suite.beforeEach = fn; }
+                };
+                callback(ctx);
+            }
+
+            async run() {
+                const resultsDiv = document.getElementById('test-results');
+                for (const suite of this.suites) {
+                    const suiteDiv = document.createElement('div');
+                    suiteDiv.className = 'test-suite';
+                    suiteDiv.innerHTML = `<h2>${suite.name}</h2>`;
+                    for (const test of suite.tests) {
+                        let testState = {};
+                        if (suite.beforeEach) testState = suite.beforeEach();
+                        const testDiv = document.createElement('div');
+                        testDiv.className = 'test-case';
+                        try {
+                            await test.fn(testState);
+                            testDiv.classList.add('pass');
+                            testDiv.innerHTML = `✅ ${test.name}`;
+                            this.passed++;
+                        } catch (error) {
+                            testDiv.classList.add('fail');
+                            testDiv.innerHTML = `❌ ${test.name}<pre class="error">${error.message}</pre>`;
+                            this.failed++;
+                        }
+                        suiteDiv.appendChild(testDiv);
+                    }
+                    resultsDiv.appendChild(suiteDiv);
+                }
+                this.displaySummary();
+            }
+
+            displaySummary() {
+                const total = this.passed + this.failed;
+                const pct = total > 0 ? ((this.passed / total) * 100).toFixed(1) : 0;
+                document.getElementById('summary-content').innerHTML = `
+                    <div class="summary-stat"><strong>Total:</strong> ${total}</div>
+                    <div class="summary-stat success"><strong>Passed:</strong> ${this.passed}</div>
+                    <div class="summary-stat error"><strong>Failed:</strong> ${this.failed}</div>
+                    <div class="summary-stat"><strong>Success Rate:</strong> ${pct}%</div>
+                `;
+            }
+        }
+
+        function assertEqual(actual, expected, msg) {
+            if (actual !== expected) throw new Error(msg || `Expected "${expected}" but got "${actual}"`);
+        }
+        function assertTrue(val, msg) { if (val !== true) throw new Error(msg || 'Expected true'); }
+        function assertArrayEqual(actual, expected, msg) {
+            if (JSON.stringify(actual) !== JSON.stringify(expected))
+                throw new Error(msg || `Expected [${expected}] but got [${actual}]`);
+        }
+
+        const runner = new TestRunner();
+
+        // ===== Suite 1: Game Logic — Diagonal Win Detection =====
+        runner.suite('Game Logic: Diagonal Win Detection', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('Player X wins via main diagonal [0, 4, 8]', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(8, 'X'); // X completes diagonal [0,4,8]
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'X', 'Winner should be X for diagonal [0,4,8]');
+                assertArrayEqual(game.winningCombination, [0, 4, 8],
+                    'Winning combination should be [0, 4, 8]');
+            });
+
+            test('Player X wins via anti-diagonal [2, 4, 6]', ({ game }) => {
+                game.makeMove(2, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(6, 'X'); // X completes diagonal [2,4,6]
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'X', 'Winner should be X for diagonal [2,4,6]');
+                assertArrayEqual(game.winningCombination, [2, 4, 6],
+                    'Winning combination should be [2, 4, 6]');
+            });
+
+            test('Player O (AI) wins via main diagonal [0, 4, 8]', ({ game }) => {
+                game.makeMove(1, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(2, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(6, 'X');
+                game.makeMove(8, 'O'); // O completes diagonal [0,4,8]
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'O', 'Winner should be O for diagonal [0,4,8]');
+                assertArrayEqual(game.winningCombination, [0, 4, 8],
+                    'Winning combination should be [0, 4, 8]');
+            });
+
+            test('Player O (AI) wins via anti-diagonal [2, 4, 6]', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(1, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(8, 'X');
+                game.makeMove(6, 'O'); // O completes diagonal [2,4,6]
+
+                assertTrue(game.isGameOver, 'Game should be over');
+                assertEqual(game.winner, 'O', 'Winner should be O for diagonal [2,4,6]');
+                assertArrayEqual(game.winningCombination, [2, 4, 6],
+                    'Winning combination should be [2, 4, 6]');
+            });
+        });
+
+        // ===== Suite 2: Result Banner Attribution =====
+        runner.suite('Result Banner: Diagonal Win Attribution', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            /**
+             * Helper: simulates what updateStatusMessage() would display
+             */
+            function getBannerText(game) {
+                const state = game.getState();
+                if (state.isGameOver) {
+                    if (state.winner === 'X') return '🎉 You won!';
+                    if (state.winner === 'O') return '😔 AI won!';
+                    return "🤝 It's a draw!";
+                }
+                return state.currentPlayer === 'X' ? 'Your turn (X)' : "AI's turn (O)";
+            }
+
+            test('Banner shows "You won!" when X wins on [0, 4, 8]', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(8, 'X');
+
+                assertEqual(getBannerText(game), '🎉 You won!',
+                    'Banner should show "You won!" for X diagonal [0,4,8] win');
+            });
+
+            test('Banner shows "You won!" when X wins on [2, 4, 6]', ({ game }) => {
+                game.makeMove(2, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(6, 'X');
+
+                assertEqual(getBannerText(game), '🎉 You won!',
+                    'Banner should show "You won!" for X diagonal [2,4,6] win');
+            });
+
+            test('Banner shows "AI won!" when O wins on [0, 4, 8]', ({ game }) => {
+                game.makeMove(1, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(2, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(6, 'X');
+                game.makeMove(8, 'O');
+
+                assertEqual(getBannerText(game), '😔 AI won!',
+                    'Banner should show "AI won!" for O diagonal [0,4,8] win');
+            });
+
+            test('Banner shows "AI won!" when O wins on [2, 4, 6]', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(1, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(8, 'X');
+                game.makeMove(6, 'O');
+
+                assertEqual(getBannerText(game), '😔 AI won!',
+                    'Banner should show "AI won!" for O diagonal [2,4,6] win');
+            });
+        });
+
+        // ===== Suite 3: Game Statistics for Diagonal Wins =====
+        runner.suite('Statistics: Diagonal Win Tracking', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('X diagonal [0,4,8] win increments wins stat', ({ game }) => {
+                const initialWins = game.stats.wins;
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(8, 'X');
+
+                assertEqual(game.stats.wins, initialWins + 1,
+                    'Wins should increment by 1 for X diagonal win');
+            });
+
+            test('X diagonal [2,4,6] win increments wins stat', ({ game }) => {
+                const initialWins = game.stats.wins;
+                game.makeMove(2, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(6, 'X');
+
+                assertEqual(game.stats.wins, initialWins + 1,
+                    'Wins should increment by 1 for X anti-diagonal win');
+            });
+
+            test('O diagonal [0,4,8] win increments losses stat', ({ game }) => {
+                const initialLosses = game.stats.losses;
+                game.makeMove(1, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(2, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(6, 'X');
+                game.makeMove(8, 'O');
+
+                assertEqual(game.stats.losses, initialLosses + 1,
+                    'Losses should increment by 1 for O diagonal win');
+            });
+
+            test('O diagonal [2,4,6] win increments losses stat', ({ game }) => {
+                const initialLosses = game.stats.losses;
+                game.makeMove(0, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(1, 'X');
+                game.makeMove(4, 'O');
+                game.makeMove(8, 'X');
+                game.makeMove(6, 'O');
+
+                assertEqual(game.stats.losses, initialLosses + 1,
+                    'Losses should increment by 1 for O anti-diagonal win');
+            });
+        });
+
+        // ===== Suite 4: Winning Cell Highlighting =====
+        runner.suite('Winning Cell Highlighting: Diagonal Patterns', ({ test, beforeEach }) => {
+            beforeEach(() => ({ game: new Game() }));
+
+            test('Winning combination contains cells [0, 4, 8] for main diagonal', ({ game }) => {
+                game.makeMove(0, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(2, 'O');
+                game.makeMove(8, 'X');
+
+                const combo = game.winningCombination;
+                assertTrue(combo.includes(0) && combo.includes(4) && combo.includes(8),
+                    'Winning combination must include cells 0, 4, 8');
+                assertEqual(combo.length, 3, 'Winning combination must have exactly 3 cells');
+            });
+
+            test('Winning combination contains cells [2, 4, 6] for anti-diagonal', ({ game }) => {
+                game.makeMove(2, 'X');
+                game.makeMove(0, 'O');
+                game.makeMove(4, 'X');
+                game.makeMove(1, 'O');
+                game.makeMove(6, 'X');
+
+                const combo = game.winningCombination;
+                assertTrue(combo.includes(2) && combo.includes(4) && combo.includes(6),
+                    'Winning combination must include cells 2, 4, 6');
+                assertEqual(combo.length, 3, 'Winning combination must have exactly 3 cells');
+            });
+        });
+
+        // ===== Suite 5: Async Race Condition — AI Move After Reset =====
+        runner.suite('Race Condition: Stale AI Move After Reset (Root Cause)', ({ test }) => {
+
+            test('gameEpoch is initialized to 0', () => {
+                const ui = new UIController();
+                assertEqual(ui.gameEpoch, 0, 'gameEpoch should start at 0');
+            });
+
+            test('handleNewGame increments gameEpoch', () => {
+                const ui = new UIController();
+                ui.handleNewGame();
+                assertEqual(ui.gameEpoch, 1, 'gameEpoch should be 1 after first reset');
+                ui.handleNewGame();
+                assertEqual(ui.gameEpoch, 2, 'gameEpoch should be 2 after second reset');
+            });
+
+            test('handleNewGame resets isAIThinking to false', () => {
+                const ui = new UIController();
+                ui.isAIThinking = true;
+                ui.handleNewGame();
+                assertEqual(ui.isAIThinking, false,
+                    'isAIThinking should be false after handleNewGame()');
+            });
+
+            test('Stale AI move is discarded after game reset', async () => {
+                const ui = new UIController();
+
+                // Human makes a move to set up AI turn
+                ui.game.makeMove(0, 'X');
+
+                // Start AI move (300ms delay)
+                const aiPromise = ui.makeAIMove();
+
+                // Reset game during delay
+                ui.handleNewGame();
+
+                // Wait for stale AI move promise to resolve
+                await aiPromise;
+
+                // Board must be empty — stale move discarded
+                const state = ui.game.getState();
+                const hasMove = state.board.some(c => c !== null);
+                assertEqual(hasMove, false,
+                    'Board should be empty — stale AI move must be discarded after reset. ' +
+                    'Got: [' + state.board.join(',') + ']');
+            });
+
+            test('Diagonal win after reset is attributed to correct player', async () => {
+                const ui = new UIController();
+
+                // Start a game and trigger AI thinking
+                ui.game.makeMove(4, 'X');
+                const aiPromise = ui.makeAIMove();
+
+                // Reset during AI thinking
+                ui.handleNewGame();
+                await aiPromise;
+
+                // Play a new game where X wins on diagonal [0, 4, 8]
+                ui.game.makeMove(0, 'X');
+                ui.game.makeMove(1, 'O');
+                ui.game.makeMove(4, 'X');
+                ui.game.makeMove(2, 'O');
+                ui.game.makeMove(8, 'X');
+
+                assertEqual(ui.game.winner, 'X',
+                    'After reset + new game, X diagonal win should be attributed to X');
+                assertEqual(ui.game.isGameOver, true,
+                    'Game should be over after diagonal win');
+            });
+
+            test('AI diagonal win after reset is attributed to O', async () => {
+                const ui = new UIController();
+
+                // Start a game and trigger AI thinking
+                ui.game.makeMove(0, 'X');
+                const aiPromise = ui.makeAIMove();
+
+                // Reset during AI thinking
+                ui.handleNewGame();
+                await aiPromise;
+
+                // Play a new game where O wins on diagonal [2, 4, 6]
+                ui.game.makeMove(0, 'X');
+                ui.game.makeMove(2, 'O');
+                ui.game.makeMove(1, 'X');
+                ui.game.makeMove(4, 'O');
+                ui.game.makeMove(8, 'X');
+                ui.game.makeMove(6, 'O');
+
+                assertEqual(ui.game.winner, 'O',
+                    'After reset + new game, O diagonal win should be attributed to O');
+            });
+
+            test('Status message shows correct winner after AI move completes diagonal', async () => {
+                const ui = new UIController();
+
+                // Set up board where AI's next move will complete diagonal [0,4,8]
+                // O has cells 0, 4 — needs cell 8 to win
+                // X has cells 1, 2, 6
+                ui.game.board = ['O', 'X', 'X', null, 'O', null, 'X', null, null];
+                ui.game.currentPlayer = 'O';
+                ui.game.moveHistory = [
+                    {index: 1, player: 'X'}, {index: 0, player: 'O'},
+                    {index: 2, player: 'X'}, {index: 4, player: 'O'},
+                    {index: 6, player: 'X'}
+                ];
+
+                // Override getAIMove to return cell 8 (completing diagonal)
+                ui.game.getAIMove = () => 8;
+
+                await ui.makeAIMove();
+
+                assertEqual(ui.game.winner, 'O',
+                    'O should be the winner after AI completes diagonal [0,4,8]');
+                const statusText = document.getElementById('status-message').textContent;
+                assertEqual(statusText, '😔 AI won!',
+                    'Status message should show "AI won!" but got: ' + statusText);
+            });
+
+            test('Status message shows correct winner when X completes diagonal via click', async () => {
+                const ui = new UIController();
+
+                // Set up board where X needs cell 8 to win diagonal [0,4,8]
+                // X has cells 0, 4 — needs 8
+                // O has cells 1, 3
+                ui.game.board = ['X', 'O', null, 'O', 'X', null, null, null, null];
+                ui.game.currentPlayer = 'X';
+                ui.game.moveHistory = [
+                    {index: 0, player: 'X'}, {index: 1, player: 'O'},
+                    {index: 4, player: 'X'}, {index: 3, player: 'O'}
+                ];
+
+                // Human clicks cell 8
+                await ui.handleCellClick(8);
+
+                assertEqual(ui.game.winner, 'X',
+                    'X should be winner after completing diagonal [0,4,8]');
+                const statusText = document.getElementById('status-message').textContent;
+                assertEqual(statusText, '🎉 You won!',
+                    'Status message should show "You won!" but got: ' + statusText);
+            });
+        });
+
+        // Run all tests
+        console.log('🚀 Starting diagonal win attribution tests...');
+        await runner.run();
+        console.log('✅ All tests complete!');
+    </script>
+</body>
+</html>
